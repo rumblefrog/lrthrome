@@ -8,10 +8,15 @@ edition = "2018"
 
 [dependencies]
 thiserror = "1"
+log = "0.4.0"
+reqwest = "0.10"
+env_logger = "0.8.2"
 toml = "0.5"
 cidr = "0.1"
+bytes = "0.6"
 bitstring = "0.1"
 bitstring-trees = "0.1"
+async-trait = "0.1"
 
 [dependencies.tokio]
 version = "0.3"

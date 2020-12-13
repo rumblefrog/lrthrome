@@ -10,6 +10,9 @@ pub struct Config {
 #[derive(Deserialize)]
 pub struct General {
     pub bind_address: String,
+
+    /// Temper interval in minutes to update cache from sources
+    pub temper_interval: u64,
 }
 
 #[derive(Deserialize)]

@@ -54,11 +54,11 @@ pub struct Lrthrome {
     /// The amount of time between temperance.
     cache_ttl: Duration,
 
-    /// Client time-to-live.
+    /// Peer time-to-live.
     ///
-    /// The amount of time a client is allowed to keep their connection open
+    /// The amount of time a peer is allowed to keep their connection open
     /// without making an additional request to refresh the timeout.
-    client_ttl: Duration,
+    peer_ttl: Duration,
 
     /// Ratelimiter for individual IP address.
     ///
@@ -79,12 +79,12 @@ enum Message {
     /// Upon repeating timer of `cache_ttl`.
     CacheTick,
 
-    /// Upon repeating timer of `client_ttl`.
+    /// Upon repeating timer of `peer_ttl`.
     PeerTick,
 
     PeerFrame(SocketAddr, BytesMut),
 
-    /// Upon client disconnect or force disconnect.
+    /// Upon peer disconnect or force disconnect.
     PeerDisconnected(SocketAddr),
 }
 
@@ -155,8 +155,8 @@ impl Lrthrome {
             // Default cache time-to-live to 24 hours.
             cache_ttl: Duration::from_secs(86400),
 
-            // Default client time-to-live to 15 seconds.
-            client_ttl: Duration::from_secs(15),
+            // Default peer time-to-live to 15 seconds.
+            peer_ttl: Duration::from_secs(15),
             ratelimiter: KeyedRateLimiter::new(rate_limit, Duration::from_secs(5)),
             rate_limit,
             sources,
@@ -173,6 +173,7 @@ impl Lrthrome {
 
         loop {
             select! {
+                // TODO: Handle shutdown signal of server
                 Ok((stream, addr)) = self.listener.accept() => {
                     let (tx_shutdown, rx_shutdown) = watch::channel(false);
                     let (tx_bytes, rx_bytes) = mpsc::unbounded_channel();
@@ -230,7 +231,7 @@ impl Lrthrome {
 
     fn sweep_peers(&mut self) -> LrthromeResult<()> {
         for c in self.peers.values() {
-            if c.last_request.elapsed() > self.client_ttl {
+            if c.last_request.elapsed() > self.peer_ttl {
                 c.tx_shutdown.send(true)?;
             }
         }
@@ -275,7 +276,7 @@ impl Lrthrome {
 
     /// Starts background timers.
     ///
-    /// Client & Cache TTL timers will initialize here.
+    /// Peer & Cache TTL timers will initialize here.
     fn start_timers(&mut self) {
         let shared = self.shared.clone();
         let cache_ttl = self.cache_ttl;
@@ -291,11 +292,11 @@ impl Lrthrome {
         });
 
         let shared = self.shared.clone();
-        let client_ttl = self.client_ttl;
+        let peer_ttl = self.peer_ttl;
 
         tokio::spawn(async move {
             loop {
-                sleep(client_ttl).await;
+                sleep(peer_ttl).await;
 
                 if let Err(e) = shared.tx.send(Message::PeerTick) {
                     error!("Unable to send cache tick: {0}", e);

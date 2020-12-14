@@ -1,13 +1,13 @@
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Config {
     pub general: General,
 
     pub sources: Sources,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct General {
     pub bind_address: String,
 
@@ -15,7 +15,7 @@ pub struct General {
     pub temper_interval: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Sources {
     pub remotes: Vec<String>,
 }

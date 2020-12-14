@@ -36,9 +36,7 @@ impl Fetcher for Remote {
         for endpoint in &self.endpoints {
             let resp = client.get(endpoint).send().await?.text().await?;
 
-            let mut lines = resp.lines();
-
-            for line in lines.next() {
+            for line in resp.lines().into_iter() {
                 if let Ok(cidr) = Ipv4Cidr::from_str(line) {
                     cidrs.push(cidr);
                 }

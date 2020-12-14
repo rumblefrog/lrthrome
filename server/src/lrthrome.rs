@@ -1,19 +1,24 @@
 use std::collections::HashMap;
-use std::net::{Shutdown, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::select;
+use tokio::stream::StreamExt;
 use tokio::sync::mpsc;
 use tokio::sync::watch::{channel, Sender};
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
+use tokio_util::codec::{BytesCodec, Decoder};
+
+use futures::sink::SinkExt;
+
 use crate::cache::Cache;
 use crate::error::LrthromeResult;
-use crate::sources::Sources;
 use crate::protocol::{Request, Response};
+use crate::sources::Sources;
 
 pub struct Lrthrome {
     listener: TcpListener,
@@ -25,6 +30,8 @@ pub struct Lrthrome {
     temper_sources: Sources,
 
     temper_interval: u64,
+
+    client_ttl: u64,
 }
 
 struct Client {
@@ -43,6 +50,7 @@ impl Lrthrome {
         addr: A,
         temper_sources: Sources,
         temper_interval: u64,
+        client_ttl: u64,
     ) -> LrthromeResult<Self> {
         Ok(Self {
             listener: TcpListener::bind(addr).await?,
@@ -50,12 +58,13 @@ impl Lrthrome {
             clients: HashMap::new(),
             temper_sources,
             temper_interval,
+            client_ttl,
         })
     }
 
     fn connection_heartbeats(&self) -> LrthromeResult<()> {
         for (_, v) in &self.clients {
-            if v.last_request.elapsed() > Duration::from_secs(10) {
+            if v.last_request.elapsed() > Duration::from_secs(self.client_ttl) {
                 v.shutdown.send(true)?;
             }
         }
@@ -67,7 +76,7 @@ impl Lrthrome {
         &mut self,
         addr: SocketAddr,
         stream: TcpStream,
-        c_tx: mpsc::Sender<Action>,
+        c_tx: mpsc::UnboundedSender<Action>,
     ) {
         let (tx, mut rx) = channel(false);
 
@@ -79,28 +88,40 @@ impl Lrthrome {
             },
         );
 
+        let cache = self.cache.clone();
         tokio::spawn(async move {
-            let mut buf = Vec::with_capacity(512);
+            let mut framed = BytesCodec::new().framed(stream);
 
             loop {
                 select! {
                     _ = rx.changed() => {
-                        stream.shutdown(Shutdown::Both).expect("Unable to shut down client stream");
+                        let _ = c_tx.send(Action::Shutdown(addr));
 
-                        if c_tx.send(Action::Shutdown(addr)).await.is_err() {
-                            error!("Main receiver shutdown");
-                        }
+                        break;
                     }
-                    Ok(ready) = stream.readable() => {
-                        if let Ok(n) = stream.try_read(&mut buf) {
+                    Some(message) = framed.next() => {
+                        match message {
+                            Ok(buf) => {
+                                if let Ok(req) = Request::new(buf.as_ref()) {
+                                    let c = cache.read().await;
 
-                            if let Ok(req) = Request::new(&buf) {
+                                    let resp = Response {
+                                        in_filter: c.exist(req.ip_address),
+                                        limit: 0,
+                                        ip_address: req.ip_address,
+                                    }.to_buf();
 
+                                    if let Err(e) = framed.send(resp).await {
+                                        error!("Unable to send response {0}", e);
+                                    }
+                                }
+
+                                let _ = c_tx.send(Action::Request(addr));
                             }
+                            Err(_) => {
+                                let _ = c_tx.send(Action::Shutdown(addr));
 
-
-                            if c_tx.send(Action::Request(addr)).await.is_err() {
-                                error!("Main receiver shutdown");
+                                break;
                             }
                         }
                     }
@@ -109,28 +130,50 @@ impl Lrthrome {
         });
     }
 
+    async fn temper_cache(&mut self) -> LrthromeResult<()> {
+        let mut cache = self.cache.write().await;
+
+        cache.temper(&self.temper_sources).await?;
+
+        Ok(())
+    }
+
     pub async fn up(&mut self) -> LrthromeResult<()> {
-        self.connection_heartbeats()?;
+        self.temper_cache().await?;
 
-        let (temper_tx, mut temper_rx) = channel(Instant::now());
-
-        let temper_interval = self.temper_interval.clone();
+        let (heartbeat_tx, mut heartbeat_rx) = channel(Instant::now());
+        let client_ttl = self.client_ttl.clone();
         tokio::spawn(async move {
-            temper_tx
-                .send(Instant::now())
-                .expect("Unable to send temper seq");
+            loop {
+                heartbeat_tx
+                    .send(Instant::now())
+                    .expect("Unable to send heartbeat seq");
 
-            sleep(Duration::from_secs(60 * temper_interval)).await;
+                sleep(Duration::from_secs(client_ttl)).await;
+            }
         });
 
-        let (c_tx, mut c_rx) = mpsc::channel(64);
+        let (temper_tx, mut temper_rx) = channel(Instant::now());
+        let temper_interval = self.temper_interval.clone();
+        tokio::spawn(async move {
+            loop {
+                temper_tx
+                    .send(Instant::now())
+                    .expect("Unable to send temper seq");
+
+                sleep(Duration::from_secs(60 * temper_interval)).await;
+            }
+        });
+
+        let (c_tx, mut c_rx) = mpsc::unbounded_channel();
 
         loop {
             select! {
-                Ok(v) = temper_rx.changed() => {
-                    let mut cache = self.cache.write().await;
-
-                    cache.temper(&self.temper_sources).await?;
+                Ok(_) = temper_rx.changed() => {
+                    self.temper_cache().await?;
+                }
+                Ok(_) = heartbeat_rx.changed() => {
+                    self.connection_heartbeats()?;
                 }
                 Some(action) = c_rx.recv() => {
                     match action {
@@ -145,6 +188,8 @@ impl Lrthrome {
                     }
                 }
                 Ok((stream, addr)) = self.listener.accept() => {
+                    info!("Client connected {}", addr);
+
                     self.handle_connection(addr, stream, c_tx.clone());
                 }
             }

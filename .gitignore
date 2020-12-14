@@ -1,3 +1,5 @@
 server/target
 config.toml
 *.smx
+deps
+.vscode

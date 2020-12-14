@@ -31,8 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.general.bind_address,
         sources,
         config.general.temper_interval,
+        5,
     )
     .await?;
+
+    info!("Lrthrome started");
 
     lrthrome.up().await?;
 

@@ -10,6 +10,9 @@ pub use remote::Remote;
 
 #[async_trait]
 pub trait Fetcher {
+    /// Check if fetcher has update available.
+    ///
+    /// If false, the fetcher will be skipped
     fn has_update(&self) -> bool;
 
     async fn iterate_cidr(&self) -> LrthromeResult<Box<dyn Iterator<Item = Ipv4Cidr>>>;

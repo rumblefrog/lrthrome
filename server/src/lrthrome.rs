@@ -1,17 +1,19 @@
-use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
+use std::num::NonZeroU32;
+use std::collections::HashMap;
+use std::net::{SocketAddr, IpAddr};
 
-use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::select;
 use tokio::stream::StreamExt;
-use tokio::sync::mpsc;
-use tokio::sync::watch::{channel, Sender};
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, watch, RwLock};
 use tokio::time::{sleep, Duration};
+use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
+use tokio_util::codec::{BytesCodec, Decoder, Framed};
 
-use tokio_util::codec::{BytesCodec, Decoder};
+use bytes::{Bytes, BytesMut};
+
+use ratelimit_meter::{KeyedRateLimiter, GCRA};
 
 use futures::sink::SinkExt;
 
@@ -21,178 +23,319 @@ use crate::protocol::{Request, Response};
 use crate::sources::Sources;
 
 pub struct Lrthrome {
+    /// TCP listener bind for the lrthrome server.
     listener: TcpListener,
 
-    cache: Arc<RwLock<Cache>>,
+    /// Shared data between peers and the server.
+    ///
+    /// Only cache field maintain RwLock, as it's the only field mutable
+    shared: Arc<Shared>,
 
-    clients: HashMap<SocketAddr, Client>,
+    /// Mapping of peer socket address to peer structure.
+    ///
+    /// The key is cleared as soon as peer disconnects.
+    ///
+    /// There could be multiple peers per IP address.
+    peers: HashMap<SocketAddr, PeerRegistry>,
 
-    temper_sources: Sources,
+    /// Main event loop receiver.
+    ///
+    /// Operates on cache feedback & client updates
+    rx: mpsc::UnboundedReceiver<Message>,
 
-    temper_interval: u64,
+    /// Structure containing compile-time registered sources,
+    /// with data populated at run-time from the config file.
+    ///
+    /// Temper will utilize the sources to refresh its cache.
+    sources: Sources,
 
-    client_ttl: u64,
+    /// Cache time-to-live.
+    ///
+    /// The amount of time between temperance.
+    cache_ttl: Duration,
+
+    /// Client time-to-live.
+    ///
+    /// The amount of time a client is allowed to keep their connection open
+    /// without making an additional request to refresh the timeout.
+    client_ttl: Duration,
+
+    /// Ratelimiter for individual IP address.
+    ///
+    /// Note that the hashmap key is `IpAddr` rather than SocketAddr.
+    /// As the ratelimit applies globally to a single address,
+    /// shared between the IP address's connections.
+    ratelimiter: KeyedRateLimiter<IpAddr, GCRA>,
+
+    /// Rate limit meter for IP address.
+    ///
+    /// Peer that exceeds this will be force disconnected.
+    rate_limit: NonZeroU32,
 }
 
-struct Client {
+/// Enum of message variants & data,
+/// in which is passed to the main thread and computed.
+enum Message {
+    /// Upon repeating timer of `cache_ttl`.
+    CacheTick,
+
+    /// Upon repeating timer of `client_ttl`.
+    PeerTick,
+
+    PeerFrame(SocketAddr, BytesMut),
+
+    /// Upon client disconnect or force disconnect.
+    PeerDisconnected(SocketAddr),
+}
+
+/// Data structures that's shared between peers and the server.
+///
+/// Only cache retains RwLock for mutability
+struct Shared {
+    /// IPv4 Radix cache tree.
+    ///
+    /// Will be write-locked when tempered
+    cache: RwLock<Cache>,
+
+    /// Main event loop sender.
+    ///
+    /// This will be cloned to peers.
+    /// Used by peers to send message back to main thread.
+    tx: mpsc::UnboundedSender<Message>,
+}
+
+struct PeerRegistry {
+    /// Instant of the last request.
+    ///
+    /// Used to compare to the duration of `client_ttl` for force-disconnecting clients.
     last_request: Instant,
 
-    shutdown: Sender<bool>,
+    /// Peer shutdown sender channel.
+    ///
+    /// Will drop connection once sent.
+    tx_shutdown: watch::Sender<bool>,
+
+    /// Peer sending channel.
+    ///
+    /// For main thread to pass information back to the `Peer`
+    tx_bytes: mpsc::UnboundedSender<Bytes>,
 }
 
-enum Action {
-    Request(SocketAddr),
-    Shutdown(SocketAddr),
+struct Peer {
+    /// Socket address identifier.
+    addr: SocketAddr,
+
+    /// Wrap the TcpStream around bytes allows chunked based level operation
+    /// rather than raw bytes.
+    frame: Framed<TcpStream, BytesCodec>,
+
+    /// Peer shutdown receiver channel.
+    ///
+    /// Will drop connection if received.
+    rx_shutdown: watch::Receiver<bool>,
+
+    /// Peer receiving channel.
+    ///
+    /// This is used to receive bytes to write to `Peer`'s socket
+    rx_bytes: mpsc::UnboundedReceiver<Bytes>,
 }
 
 impl Lrthrome {
-    pub async fn new<A: ToSocketAddrs>(
-        addr: A,
-        temper_sources: Sources,
-        temper_interval: u64,
-        client_ttl: u64,
-    ) -> LrthromeResult<Self> {
+    pub async fn new<A>(addr: A, sources: Sources, rate_limit: NonZeroU32) -> LrthromeResult<Self>
+    where
+        A: ToSocketAddrs,
+    {
+        let (tx, rx) = mpsc::unbounded_channel();
+
         Ok(Self {
             listener: TcpListener::bind(addr).await?,
-            cache: Arc::new(RwLock::new(Cache::new())),
-            clients: HashMap::new(),
-            temper_sources,
-            temper_interval,
-            client_ttl,
+            shared: Arc::new(Shared::new(tx)),
+            peers: HashMap::new(),
+
+            // Default cache time-to-live to 24 hours.
+            cache_ttl: Duration::from_secs(86400),
+
+            // Default client time-to-live to 15 seconds.
+            client_ttl: Duration::from_secs(15),
+            ratelimiter: KeyedRateLimiter::new(rate_limit, Duration::from_secs(5)),
+            rate_limit,
+            sources,
+            rx,
         })
     }
 
-    fn connection_heartbeats(&self) -> LrthromeResult<()> {
-        for v in self.clients.values() {
-            if v.last_request.elapsed() > Duration::from_secs(self.client_ttl) {
-                v.shutdown.send(true)?;
+    /// Start the main event loop.
+    ///
+    /// Handles the connections as well as `Lrthrome`.rx events.
+    pub async fn up(&mut self) -> LrthromeResult<()> {
+        self.start_timers();
+        self.temper_cache().await?;
+
+        loop {
+            select! {
+                Ok((stream, addr)) = self.listener.accept() => {
+                    let (tx_shutdown, rx_shutdown) = watch::channel(false);
+                    let (tx_bytes, rx_bytes) = mpsc::unbounded_channel();
+
+                    self.peers.insert(addr, PeerRegistry::new(tx_shutdown, tx_bytes));
+
+                    self.process_peer(Peer::new(addr, stream, rx_shutdown, rx_bytes));
+                }
+                Some(message) = self.rx.recv() => {
+                    match message {
+                        Message::CacheTick => self.temper_cache().await?,
+                        Message::PeerTick => self.sweep_peers()?,
+                        Message::PeerFrame(addr, buf) => {
+                            match Request::new(buf.as_ref()) {
+                                Ok(req) => {
+                                    let c = self.shared.cache.read().await;
+
+                                    // TODO: Handle rate limiting
+
+                                    let resp = Response {
+                                        in_filter: c.exist(req.ip_address),
+                                        limit: self.rate_limit.get() as u8,
+                                        ip_address: req.ip_address,
+                                    };
+
+                                    if let Some(peer) = self.peers.get(&addr) {
+                                        if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
+                                            error!("Unable to send response to {}: {}", addr, e);
+                                        }
+                                    }
+                                },
+                                Err(_) => {
+                                    // TODO: Implement a response message for errors
+                                }
+                            }
+                        },
+                        Message::PeerDisconnected(addr) => {
+                            self.peers.remove(&addr);
+                        }
+                    }
+                }
             }
         }
 
         Ok(())
     }
 
-    fn handle_connection(
-        &mut self,
-        addr: SocketAddr,
-        stream: TcpStream,
-        c_tx: mpsc::UnboundedSender<Action>,
-    ) {
-        let (tx, mut rx) = channel(false);
-
-        self.clients.insert(
-            addr,
-            Client {
-                last_request: Instant::now(),
-                shutdown: tx,
-            },
-        );
-
-        let cache = self.cache.clone();
-        tokio::spawn(async move {
-            let mut framed = BytesCodec::new().framed(stream);
-
-            loop {
-                select! {
-                    _ = rx.changed() => {
-                        let _ = c_tx.send(Action::Shutdown(addr));
-
-                        break;
-                    }
-                    Some(message) = framed.next() => {
-                        match message {
-                            Ok(buf) => {
-                                if let Ok(req) = Request::new(buf.as_ref()) {
-                                    let c = cache.read().await;
-
-                                    let resp = Response {
-                                        in_filter: c.exist(req.ip_address),
-                                        limit: 0,
-                                        ip_address: req.ip_address,
-                                    }.to_buf();
-
-                                    if let Err(e) = framed.send(resp).await {
-                                        error!("Unable to send response {0}", e);
-                                    }
-                                }
-
-                                let _ = c_tx.send(Action::Request(addr));
-                            }
-                            Err(_) => {
-                                let _ = c_tx.send(Action::Shutdown(addr));
-
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     async fn temper_cache(&mut self) -> LrthromeResult<()> {
-        let mut cache = self.cache.write().await;
+        let mut c = self.shared.cache.write().await;
 
-        cache.temper(&self.temper_sources).await?;
+        c.temper(&self.sources).await?;
 
         Ok(())
     }
 
-    pub async fn up(&mut self) -> LrthromeResult<()> {
-        self.temper_cache().await?;
+    fn sweep_peers(&mut self) -> LrthromeResult<()> {
+        for c in self.peers.values() {
+            if c.last_request.elapsed() > self.client_ttl {
+                c.tx_shutdown.send(true)?;
+            }
+        }
 
-        let (heartbeat_tx, mut heartbeat_rx) = channel(Instant::now());
-        let client_ttl = self.client_ttl;
+        Ok(())
+    }
+
+    fn process_peer(&mut self, peer: Peer) {
+        let shared = self.shared.clone();
+
+        let mut peer = peer;
         tokio::spawn(async move {
             loop {
-                heartbeat_tx
-                    .send(Instant::now())
-                    .expect("Unable to send heartbeat seq");
+                select! {
+                    _ = peer.rx_shutdown.changed() => {
+                        let _ = shared.tx.send(Message::PeerDisconnected(peer.addr));
 
-                sleep(Duration::from_secs(client_ttl)).await;
-            }
-        });
+                        // Exiting this function will drop peer, dropping the connection
+                        return;
+                    }
+                    Some(bytes) = peer.rx_bytes.recv() => {
+                        if let Err(e) = peer.frame.send(bytes).await {
+                            error!("Unable to send bytes to {}: {}", peer.addr, e);
+                        }
+                    }
+                    Some(message) = peer.frame.next() => {
+                        match message {
+                            Ok(buf) => {
+                                let _ = shared.tx.send(Message::PeerFrame(peer.addr, buf));
+                            },
+                            Err(_) => {
+                                let _ = shared.tx.send(Message::PeerDisconnected(peer.addr));
 
-        let (temper_tx, mut temper_rx) = channel(Instant::now());
-        let temper_interval = self.temper_interval;
-        tokio::spawn(async move {
-            loop {
-                temper_tx
-                    .send(Instant::now())
-                    .expect("Unable to send temper seq");
-
-                sleep(Duration::from_secs(60 * temper_interval)).await;
-            }
-        });
-
-        let (c_tx, mut c_rx) = mpsc::unbounded_channel();
-
-        loop {
-            select! {
-                Ok(_) = temper_rx.changed() => {
-                    self.temper_cache().await?;
-                }
-                Ok(_) = heartbeat_rx.changed() => {
-                    self.connection_heartbeats()?;
-                }
-                Some(action) = c_rx.recv() => {
-                    match action {
-                        Action::Request(addr) => {
-                            if let Some(v) = self.clients.get_mut(&addr) {
-                                v.last_request = Instant::now();
+                                return;
                             }
-                        },
-                        Action::Shutdown(addr) => {
-                            self.clients.remove(&addr);
                         }
                     }
                 }
-                Ok((stream, addr)) = self.listener.accept() => {
-                    info!("Client connected {}", addr);
+            }
+        });
+    }
 
-                    self.handle_connection(addr, stream, c_tx.clone());
+    /// Starts background timers.
+    ///
+    /// Client & Cache TTL timers will initialize here.
+    fn start_timers(&mut self) {
+        let shared = self.shared.clone();
+        let cache_ttl = self.cache_ttl;
+
+        tokio::spawn(async move {
+            loop {
+                sleep(cache_ttl).await;
+
+                if let Err(e) = shared.tx.send(Message::CacheTick) {
+                    error!("Unable to send cache tick: {0}", e);
                 }
             }
+        });
+
+        let shared = self.shared.clone();
+        let client_ttl = self.client_ttl;
+
+        tokio::spawn(async move {
+            loop {
+                sleep(client_ttl).await;
+
+                if let Err(e) = shared.tx.send(Message::PeerTick) {
+                    error!("Unable to send cache tick: {0}", e);
+                }
+            }
+        });
+    }
+}
+
+impl Shared {
+    pub fn new(tx: mpsc::UnboundedSender<Message>) -> Self {
+        Self {
+            cache: RwLock::new(Cache::new()),
+            tx,
+        }
+    }
+}
+
+impl PeerRegistry {
+    pub fn new(tx_shutdown: watch::Sender<bool>, tx_bytes: mpsc::UnboundedSender<Bytes>) -> Self {
+        Self {
+            last_request: Instant::now(),
+            tx_shutdown,
+            tx_bytes,
+        }
+    }
+}
+
+impl Peer {
+    pub fn new(
+        addr: SocketAddr,
+        stream: TcpStream,
+        rx_shutdown: watch::Receiver<bool>,
+        rx_bytes: mpsc::UnboundedReceiver<Bytes>,
+    ) -> Self {
+        Self {
+            addr,
+            frame: BytesCodec::new().framed(stream),
+            rx_shutdown,
+            rx_bytes,
         }
     }
 }

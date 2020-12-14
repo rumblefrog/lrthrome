@@ -1,14 +1,14 @@
+use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Instant;
-use std::num::NonZeroU32;
-use std::collections::HashMap;
-use std::net::{SocketAddr, IpAddr};
 
+use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::select;
 use tokio::stream::StreamExt;
 use tokio::sync::{mpsc, watch, RwLock};
 use tokio::time::{sleep, Duration};
-use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio_util::codec::{BytesCodec, Decoder, Framed};
 
 use bytes::{Bytes, BytesMut};

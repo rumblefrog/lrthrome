@@ -40,7 +40,7 @@ pub struct Lrthrome {
 
     /// Main event loop receiver.
     ///
-    /// Operates on cache feedback & client updates
+    /// Operates on cache feedback & peer updates
     rx: mpsc::UnboundedReceiver<Message>,
 
     /// Structure containing compile-time registered sources,
@@ -62,7 +62,7 @@ pub struct Lrthrome {
 
     /// Ratelimiter for individual IP address.
     ///
-    /// Note that the hashmap key is `IpAddr` rather than SocketAddr.
+    /// Note that the key is `IpAddr` rather than SocketAddr.
     /// As the ratelimit applies globally to a single address,
     /// shared between the IP address's connections.
     ratelimiter: KeyedRateLimiter<IpAddr, GCRA>,
@@ -107,7 +107,7 @@ struct Shared {
 struct PeerRegistry {
     /// Instant of the last request.
     ///
-    /// Used to compare to the duration of `client_ttl` for force-disconnecting clients.
+    /// Used to compare to the duration of `peer_ttl` for force-disconnecting peers.
     last_request: Instant,
 
     /// Peer shutdown sender channel.

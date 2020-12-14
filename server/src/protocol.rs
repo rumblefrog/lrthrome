@@ -86,7 +86,7 @@ impl ReadCString for Cursor<&[u8]> {
         let mut str_vec = Vec::with_capacity(256);
 
         while self.position() < end {
-            self.read(&mut buf)?;
+            self.read_exact(&mut buf)?;
             if buf[0] == 0 {
                 break;
             } else {

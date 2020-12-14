@@ -63,7 +63,7 @@ impl Lrthrome {
     }
 
     fn connection_heartbeats(&self) -> LrthromeResult<()> {
-        for (_, v) in &self.clients {
+        for v in self.clients.values() {
             if v.last_request.elapsed() > Duration::from_secs(self.client_ttl) {
                 v.shutdown.send(true)?;
             }
@@ -142,7 +142,7 @@ impl Lrthrome {
         self.temper_cache().await?;
 
         let (heartbeat_tx, mut heartbeat_rx) = channel(Instant::now());
-        let client_ttl = self.client_ttl.clone();
+        let client_ttl = self.client_ttl;
         tokio::spawn(async move {
             loop {
                 heartbeat_tx
@@ -154,7 +154,7 @@ impl Lrthrome {
         });
 
         let (temper_tx, mut temper_rx) = channel(Instant::now());
-        let temper_interval = self.temper_interval.clone();
+        let temper_interval = self.temper_interval;
         tokio::spawn(async move {
             loop {
                 temper_tx

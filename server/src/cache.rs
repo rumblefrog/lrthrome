@@ -67,9 +67,9 @@ impl<T: Clone> Node<T> {
         } else {
             &mut self.right
         };
-        match next_node {
-            &mut Some(ref mut boxed_node) => boxed_node.insert(key << 1, mask << 1, value),
-            &mut None => {
+        match *next_node {
+            Some(ref mut boxed_node) => boxed_node.insert(key << 1, mask << 1, value),
+            None => {
                 let mut new_node = Node::<T> {
                     value: None,
                     left: None,
@@ -92,11 +92,11 @@ impl<T: Clone> Node<T> {
         } else {
             &self.right
         };
-        match next_node {
-            &Some(ref boxed_node) => {
+        match *next_node {
+            Some(ref boxed_node) => {
                 boxed_node._find(key << 1, mask << 1, self.value.clone().or(cur_val))
             }
-            &None => self.value.clone().or(cur_val),
+            None => self.value.clone().or(cur_val),
         }
     }
 

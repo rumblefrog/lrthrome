@@ -26,3 +26,8 @@ features = ["full"]
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1

@@ -19,7 +19,7 @@ use sources::{Remote, Sources};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let config_loc = var("LRTHROME_CONFIG").unwrap_or("config.toml".into());
+    let config_loc = var("LRTHROME_CONFIG").unwrap_or_else(|_|  "config.toml".into());
 
     let config: Config = toml::from_slice(&std::fs::read(config_loc)?)?;
 

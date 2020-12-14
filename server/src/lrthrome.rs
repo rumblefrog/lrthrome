@@ -164,6 +164,16 @@ impl Lrthrome {
         })
     }
 
+    #[allow(dead_code)]
+    pub fn cache_ttl(&mut self, dur: Duration) {
+        self.cache_ttl = dur;
+    }
+
+    #[allow(dead_code)]
+    pub fn peer_ttl(&mut self, dur: Duration) {
+        self.peer_ttl = dur;
+    }
+
     /// Start the main event loop.
     ///
     /// Handles the connections as well as `Lrthrome`.rx events.

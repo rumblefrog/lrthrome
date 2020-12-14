@@ -8,6 +8,9 @@ pub enum LrthromeError {
     #[error("Reqwest error {0}")]
     ReqwestError(#[from] reqwest::Error),
 
+    #[error("Mismatching protocol version, expected {0}, received {1}")]
+    ProtocolMismatch(u8, u8),
+
     #[error("Stream shutdown watch channel error {0}")]
     ShutdownWatchError(#[from] tokio::sync::watch::error::SendError<bool>),
 }

@@ -3,8 +3,6 @@ use std::net::{Shutdown, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
 
-use bytes::BytesMut;
-
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::select;
 use tokio::sync::mpsc;
@@ -15,6 +13,7 @@ use tokio::time::{sleep, Duration};
 use crate::cache::Cache;
 use crate::error::LrthromeResult;
 use crate::sources::Sources;
+use crate::protocol::{Request, Response};
 
 pub struct Lrthrome {
     listener: TcpListener,
@@ -81,7 +80,7 @@ impl Lrthrome {
         );
 
         tokio::spawn(async move {
-            let mut buf = BytesMut::with_capacity(512);
+            let mut buf = Vec::with_capacity(512);
 
             loop {
                 select! {
@@ -94,6 +93,10 @@ impl Lrthrome {
                     }
                     Ok(ready) = stream.readable() => {
                         if let Ok(n) = stream.try_read(&mut buf) {
+
+                            if let Ok(req) = Request::new(&buf) {
+
+                            }
 
 
                             if c_tx.send(Action::Request(addr)).await.is_err() {

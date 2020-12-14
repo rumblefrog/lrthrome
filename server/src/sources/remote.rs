@@ -39,7 +39,9 @@ impl Fetcher for Remote {
             let mut lines = resp.lines();
 
             for line in lines.next() {
-                cidrs.push(Ipv4Cidr::from_str(line).unwrap());
+                if let Ok(cidr) = Ipv4Cidr::from_str(line) {
+                    cidrs.push(cidr);
+                }
             }
         }
 

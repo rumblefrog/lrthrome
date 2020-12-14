@@ -1,3 +1,4 @@
+#![feature(associated_type_bounds)]
 #[macro_use]
 extern crate log;
 
@@ -7,6 +8,7 @@ mod cache;
 mod config;
 mod error;
 mod lrthrome;
+mod protocol;
 mod sources;
 
 use config::Config;

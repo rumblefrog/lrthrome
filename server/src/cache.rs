@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+
 use cidr::Ipv4Cidr;
 
 use bitstring_trees::set::RadixSet;
@@ -14,6 +16,12 @@ impl Cache {
         Self {
             tree: RadixSet::new(),
         }
+    }
+
+    pub fn exist(&self, addr: Ipv4Addr) -> bool {
+        // if self.tree.
+
+        false
     }
 
     pub async fn temper(&mut self, sources: &Sources) -> LrthromeResult<()> {

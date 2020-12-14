@@ -1,5 +1,10 @@
+# Artifacts/compiled outputs
 server/target
-config.toml
 *.smx
+
+# Development dependencies
 deps
+
+# Development environment
 .vscode
+config.toml

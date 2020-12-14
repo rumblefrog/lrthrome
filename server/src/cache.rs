@@ -25,7 +25,7 @@ impl Cache {
             let iter = source.iterate_cidr().await?;
 
             for cidr in iter {
-                self.tree.add_cidr(cidr);
+                self.tree.add_cidr(&cidr);
             }
         }
 
@@ -57,7 +57,7 @@ impl<T: Clone> Node<T> {
     }
 
     fn insert(&mut self, key: u32, mask: u32, value: T) {
-        let bit: u32 = 0x80000000;
+        let bit: u32 = 0x8000_0000;
         if mask == 0 {
             self.value = Some(value);
             return;
@@ -82,7 +82,7 @@ impl<T: Clone> Node<T> {
     }
 
     fn _find(&self, key: u32, mask: u32, cur_val: Option<T>) -> Option<T> {
-        let bit: u32 = 0x80000000;
+        let bit: u32 = 0x8000_0000;
         if mask == 0 {
             return self.value.clone().or(cur_val);
         }
@@ -117,12 +117,12 @@ impl PrefixTree {
         }
     }
 
-    pub fn add_cidr(&mut self, cidr: Ipv4Cidr) {
+    pub fn add_cidr(&mut self, cidr: &Ipv4Cidr) {
         self.root
             .insert(u32::from(cidr.first_address()), u32::from(cidr.mask()), 1);
     }
 
     pub fn contains_addr(&self, addr: Ipv4Addr) -> bool {
-        self.root.find(u32::from(addr), 0xffffffff).is_some()
+        self.root.find(u32::from(addr), 0xffff_ffff).is_some()
     }
 }

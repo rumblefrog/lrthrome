@@ -2,6 +2,7 @@
 extern crate log;
 
 use std::env::var;
+use std::num::NonZeroU32;
 
 mod cache;
 mod config;
@@ -29,8 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut lrthrome = Lrthrome::new(
         config.general.bind_address,
         sources,
-        config.general.temper_interval,
-        5,
+        NonZeroU32::new(10).unwrap(),
     )
     .await?;
 

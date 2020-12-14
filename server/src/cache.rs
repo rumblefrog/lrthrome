@@ -5,27 +5,30 @@ use cidr::{Cidr, Ipv4Cidr};
 use crate::error::LrthromeResult;
 use crate::sources::Sources;
 
-pub struct Cache {
-    tree: PrefixTree,
-}
+/// Wrapper around prefix tree structure.
+///
+/// Includes convenient methods for tempering and existence check.
+pub struct Cache(PrefixTree);
 
 impl Cache {
     pub fn new() -> Self {
-        Self {
-            tree: PrefixTree::new(),
-        }
+        Self(PrefixTree::new())
     }
 
     pub fn exist(&self, addr: Ipv4Addr) -> bool {
-        self.tree.contains_addr(addr)
+        self.0.contains_addr(addr)
     }
 
     pub async fn temper(&mut self, sources: &Sources) -> LrthromeResult<()> {
         for source in sources.sources() {
+            if !source.has_update() {
+                continue;
+            }
+
             let iter = source.iterate_cidr().await?;
 
             for cidr in iter {
-                self.tree.add_cidr(&cidr);
+                self.0.add_cidr(&cidr);
             }
         }
 
@@ -35,7 +38,7 @@ impl Cache {
 
 type Branch<T> = Option<Box<Node<T>>>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Node<T>
 where
     T: Clone,
@@ -105,7 +108,6 @@ impl<T: Clone> Node<T> {
     }
 }
 
-#[derive(Debug)]
 pub struct PrefixTree {
     root: Node<u8>,
 }

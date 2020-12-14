@@ -10,6 +10,7 @@ edition = "2018"
 thiserror = "1"
 log = "0.4.0"
 reqwest = { path = "../deps/reqwest" }
+ratelimit_meter = "5"
 env_logger = "0.8.2"
 toml = "0.5"
 cidr = "0.1"

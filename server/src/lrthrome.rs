@@ -183,7 +183,10 @@ impl Lrthrome {
 
         loop {
             select! {
-                // TODO: Handle shutdown signal of server
+                _ = tokio::signal::ctrl_c() => {
+                    // Exit to main
+                    return Ok(());
+                }
                 Ok((stream, addr)) = self.listener.accept() => {
                     let (tx_shutdown, rx_shutdown) = watch::channel(false);
                     let (tx_bytes, rx_bytes) = mpsc::unbounded_channel();
@@ -199,24 +202,33 @@ impl Lrthrome {
                         Message::PeerFrame(addr, buf) => {
                             match Request::new(buf.as_ref()) {
                                 Ok(req) => {
-                                    let c = self.shared.cache.read().await;
+                                    if let Some(peer) = self.peers.get_mut(&addr) {
+                                        // Peer reached ratelimit, disconnect
+                                        if self.ratelimiter.check(addr.ip()).is_err() {
+                                            Self::shutdown_peer(peer, &addr);
 
-                                    // TODO: Handle rate limiting
+                                            continue;
+                                        }
 
-                                    let resp = Response {
-                                        in_filter: c.exist(req.ip_address),
-                                        limit: self.rate_limit.get() as u8,
-                                        ip_address: req.ip_address,
-                                    };
+                                        peer.last_request = Instant::now();
 
-                                    if let Some(peer) = self.peers.get(&addr) {
+                                        let c = self.shared.cache.read().await;
+
+                                        let resp = Response {
+                                            in_filter: c.exist(req.ip_address),
+                                            limit: self.rate_limit.get() as u8,
+                                            ip_address: req.ip_address,
+                                        };
+
                                         if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
                                             error!("Unable to send response to {}: {}", addr, e);
                                         }
                                     }
                                 },
                                 Err(_) => {
-                                    // TODO: Implement a response message for errors
+                                    if let Some(peer) = self.peers.get_mut(&addr) {
+                                        Self::shutdown_peer(peer, &addr)
+                                    }
                                 }
                             }
                         },
@@ -227,8 +239,12 @@ impl Lrthrome {
                 }
             }
         }
+    }
 
-        Ok(())
+    fn shutdown_peer(peer: &mut PeerRegistry, addr: &SocketAddr) {
+        if let Err(e) = peer.tx_shutdown.send(true) {
+            error!("Unable to shutdown peer {}: {}", addr, e);
+        }
     }
 
     async fn temper_cache(&mut self) -> LrthromeResult<()> {

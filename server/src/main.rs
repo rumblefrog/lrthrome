@@ -38,5 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     lrthrome.up().await?;
 
+    info!("Lrthrome shutting down");
+
     Ok(())
 }

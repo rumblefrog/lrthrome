@@ -2,7 +2,6 @@
 
 #include <sourcemod>
 #include <socket>
-#include <morecolors> // Morecolors defines a max buffer as well as bytebuffer but bytebuffer does if defined check
 #include <bytebuffer>
 
 #pragma semicolon 1
@@ -11,6 +10,7 @@
 
 #define MAX_EVENT_NAME_LENGTH 128
 #define MAX_COMMAND_LENGTH 512
+
 #define PROTOCOL_VERSION 1
 
 #pragma newdecls required
@@ -47,31 +47,6 @@ Handle g_hEventReceiveForward;
 
 EngineVersion g_evEngine;
 
-enum MessageType
-{
-	MessageInvalid = 0,
-	MessageAuthenticate,
-	MessageAuthenticateResponse,
-	MessageChat,
-	MessageEvent,
-	MessageTypeCount,
-}
-
-enum AuthenticateResponse
-{
-	AuthenticateInvalid = 0,
-	AuthenticateSuccess,
-	AuthenticateDenied,
-	AuthenticateResponseCount,
-}
-
-enum IdentificationType
-{
-	IdentificationInvalid = 0,
-	IdentificationSteam,
-	IdentificationDiscord,
-	IdentificationTypeCount,
-}
 
 /**
  * Base message structure
@@ -118,27 +93,38 @@ methodmap BaseMessage < ByteBuffer
 
 methodmap Request < BaseMessage
 {
-
-	public requestMessage(int ip_address, StringMap() keyvals)
+	public void requestMessage(int ip_address, StringMap() keyvals)
 	{
-		BaseMessage m = BaseMessage();
-		m.writeByte(PROTOCOL_VERSION);
-		m.writeInt(ip_address);
-		m.writeInt(keyvals.Size);
-		for(int i = 0; i < keyvals.Snapshot().Length; i++){
+		BaseMessage mreq = BaseMessage();
+		mreq.writeByte(PROTOCOL_VERSION);
+		mreq.writeInt(ip_address);
+		mreq.writeInt(keyvals.Size);
+		/*for(int i = 0; i < keyvals.Snapshot().Length; i++){
 			m.writeString(keyvals)
-		}
+		}*/
 	}
 
 }
 
 
-/*methodmap Response < BaseMessage
+methodmap Response < BaseMessage
 {
-	
-	public 
-
-}*/
+	public void responseMessage(int ip_address/*,byte info_byte*/)
+	{
+		BaseMessage mres = BaseMessage();
+		/*
+		char[] infoByte = info_byte.ConvertToString();
+		int infilByte = <int>infoByte[0]
+		char[7] limitByte = {};
+		for(int i = 1; i < 8; i++){
+			limitByte[i] = infoByte[i];
+		}
+		mres.writeByte(infilByte);
+		mres.writeByte(<int> limitByte);
+		mres.writeInt(ip_address);
+		*/
+	}
+}
 
 
 public void OnClientPostAdminCheck(int client)
@@ -149,28 +135,9 @@ public void OnClientPostAdminCheck(int client)
 		return;
 }
 
-public Plugin myinfo = 
-{
-	name = "Source Chat Relay",
-	author = PLUGIN_AUTHOR,
-	description = "Communicate between Discord & In-Game, monitor server without being in-game, control the flow of messages and user base engagement!",
-	version = PLUGIN_VERSION,
-	url = "https://keybase.io/RumbleFrog"
-};
-
-public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
-{
-	RegPluginLibrary("Source-Chat-Relay");
-
-	CreateNative("SCR_SendMessage", Native_SendMessage);
-	CreateNative("SCR_SendEvent", Native_SendEvent);
-
-	return APLRes_Success;
-}
-
 public void OnPluginStart()
 {
-	CreateConVar("rf_scr_version", PLUGIN_VERSION, "Source Chat Relay Version", FCVAR_REPLICATED | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
+	/*CreateConVar("rf_scr_version", PLUGIN_VERSION, "Source Chat Relay Version", FCVAR_REPLICATED | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 
 	g_cHost = CreateConVar("rf_scr_host", "127.0.0.1", "Relay Server Host", FCVAR_PROTECTED);
 
@@ -187,7 +154,7 @@ public void OnPluginStart()
 	
 	g_cMapEvent = CreateConVar("rf_scr_event_map", "0", "Enable map start/end events", FCVAR_NONE, true, 0.0, true, 1.0);
 	
-	AutoExecConfig(true, "Source-Server-Relay");
+	AutoExecConfig(true, "Source-Server-Relay");*/
 	
 	g_hSocket = SocketCreate(SOCKET_TCP, OnSocketError);
 
@@ -197,3 +164,4 @@ public void OnPluginStart()
 	#if defined DEBUG
 	SocketSetOption(g_hSocket, DebugMode, 1);
 	#endif
+}

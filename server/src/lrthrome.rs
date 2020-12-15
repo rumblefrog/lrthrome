@@ -205,11 +205,11 @@ impl Lrthrome {
                         Message::CacheTick => self.temper_cache().await?,
                         Message::PeerTick => self.sweep_peers()?,
                         Message::PeerFrame(addr, buf) => {
-                            debug!("Received peer frame from {} (length = {})", addr, buf.len());
+                            debug!("Received peer frame (addr = {}) (length = {})", addr, buf.len());
 
                             match Request::new(buf.as_ref()) {
                                 Ok(req) => {
-                                    debug!("Parsed request from {}", addr);
+                                    debug!("Parsed request (addr = {})", addr);
 
                                     if let Some(peer) = self.peers.get_mut(&addr) {
                                         // Peer reached ratelimit, disconnect
@@ -235,7 +235,7 @@ impl Lrthrome {
                                         debug!("Replied to peer request (addr = {})", addr);
 
                                         if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
-                                            error!("Unable to send response to {}: {}", addr, e);
+                                            error!("Unable to send response (addr = {}): {}", addr, e);
                                         }
                                     }
                                 },
@@ -260,7 +260,7 @@ impl Lrthrome {
 
     fn shutdown_peer(peer: &mut PeerRegistry, addr: &SocketAddr) {
         if let Err(e) = peer.tx_shutdown.send(true) {
-            error!("Unable to shutdown peer {}: {}", addr, e);
+            error!("Unable to shutdown peer (addr = {}): {}", addr, e);
         }
     }
 

@@ -206,6 +206,7 @@ impl Lrthrome {
                                         // Peer reached ratelimit, disconnect
                                         if self.ratelimiter.check(addr.ip()).is_err() {
                                             Self::shutdown_peer(peer, &addr);
+                                            self.cleanup();
 
                                             continue;
                                         }
@@ -227,7 +228,8 @@ impl Lrthrome {
                                 },
                                 Err(_) => {
                                     if let Some(peer) = self.peers.get_mut(&addr) {
-                                        Self::shutdown_peer(peer, &addr)
+                                        Self::shutdown_peer(peer, &addr);
+                                        self.cleanup();
                                     }
                                 }
                             }
@@ -245,6 +247,10 @@ impl Lrthrome {
         if let Err(e) = peer.tx_shutdown.send(true) {
             error!("Unable to shutdown peer {}: {}", addr, e);
         }
+    }
+
+    fn cleanup(&mut self) {
+        self.ratelimiter.cleanup(Duration::from_secs(60));
     }
 
     async fn temper_cache(&mut self) -> LrthromeResult<()> {

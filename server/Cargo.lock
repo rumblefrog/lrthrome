@@ -520,6 +520,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml",
+ "treebitmap",
 ]
 
 [[package]]
@@ -1264,6 +1265,12 @@ dependencies = [
  "pin-project 0.4.27",
  "tracing",
 ]
+
+[[package]]
+name = "treebitmap"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bf423939ac9ccf4083788879b883a7149176586f9cf8b0fb1fd88b66ad692b5"
 
 [[package]]
 name = "try-lock"

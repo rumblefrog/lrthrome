@@ -1,6 +1,7 @@
 # Artifacts/compiled outputs
 server/target
 *.smx
+*.exe
 
 # Development dependencies
 deps

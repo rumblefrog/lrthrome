@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut lrthrome = Lrthrome::new(
         config.general.bind_address,
         sources,
-        NonZeroU32::new(10).unwrap(),
+        NonZeroU32::new(config.general.rate_limit).unwrap(),
     )
     .await?;
 

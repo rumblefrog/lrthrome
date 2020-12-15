@@ -13,6 +13,9 @@ pub struct General {
 
     /// Temper interval in minutes to update cache from sources
     pub temper_interval: u64,
+
+    /// Maximum rate limit per 5 seconds
+    pub rate_limit: u32,
 }
 
 #[derive(Deserialize, Debug)]

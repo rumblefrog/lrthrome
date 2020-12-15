@@ -164,14 +164,16 @@ impl Lrthrome {
         })
     }
 
-    #[allow(dead_code)]
-    pub fn cache_ttl(&mut self, dur: Duration) {
+    pub fn cache_ttl(&mut self, dur: Duration) -> &mut Self {
         self.cache_ttl = dur;
+
+        self
     }
 
-    #[allow(dead_code)]
-    pub fn peer_ttl(&mut self, dur: Duration) {
+    pub fn peer_ttl(&mut self, dur: Duration) -> &mut Self {
         self.peer_ttl = dur;
+
+        self
     }
 
     /// Start the main event loop.

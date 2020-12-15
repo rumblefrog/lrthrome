@@ -1,7 +1,24 @@
-[general]
+[General]
+# Address to bind the TCP server to.
 bind_address = "0.0.0.0:25597"
-temper_interval = 5
-rate_limit = 10
 
-[sources]
+# Cache time-to-live.
+# Interval in seconds the cache will be purged and fetched again.
+# Defaults to 24 hours.
+cache_ttl = 86400
+
+# Peer time-to-live.
+# Interval that a peer's connection can stay alive without additional requests.
+# Defaults to 15 seconds.
+peer_ttl = 15
+
+# Maximum rate over the span of 5 seconds.
+# Multiple connections on a single IP address are aggregated together.
+rate_limit = 100
+
+# Sources that cache will be populated from.
+#
+# Additional source types may be added in the future.
+[Sources]
+# HTTP endpoints to populate from.
 remotes = [""]

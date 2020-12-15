@@ -2,6 +2,7 @@
 extern crate log;
 
 use std::env::var;
+use std::time::Duration;
 use std::num::NonZeroU32;
 
 use env_logger::Env;
@@ -37,6 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         NonZeroU32::new(config.general.rate_limit).unwrap(),
     )
     .await?;
+
+    lrthrome
+        .cache_ttl(Duration::from_secs(config.general.cache_ttl))
+        .peer_ttl(Duration::from_secs(config.general.peer_ttl));
 
     info!("Lrthrome started");
 

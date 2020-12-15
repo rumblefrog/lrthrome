@@ -2,8 +2,10 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
+    #[serde(rename(deserialize = "General"))]
     pub general: General,
 
+    #[serde(rename(deserialize = "Sources"))]
     pub sources: Sources,
 }
 
@@ -11,10 +13,16 @@ pub struct Config {
 pub struct General {
     pub bind_address: String,
 
-    /// Temper interval in minutes to update cache from sources
-    pub temper_interval: u64,
+    /// Cache time-to-live.
+    /// Interval in seconds the cache will be purged and fetched again.
+    pub cache_ttl: u64,
 
-    /// Maximum rate limit per 5 seconds
+    /// Peer time-to-live.
+    /// Interval that a peer's connection can stay alive without additional requests.
+    pub peer_ttl: u64,
+
+    /// Maximum rate over the span of 5 seconds.
+    /// Multiple connections on a single IP address are aggregated together.
     pub rate_limit: u32,
 }
 

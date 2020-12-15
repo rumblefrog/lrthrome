@@ -4,6 +4,8 @@ extern crate log;
 use std::env::var;
 use std::num::NonZeroU32;
 
+use env_logger::Env;
+
 mod cache;
 mod config;
 mod error;
@@ -17,7 +19,9 @@ use sources::{Remote, Sources};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    let el_env = Env::default().filter_or("LRTHROME_LOG_LEVEL", "info");
+
+    env_logger::init_from_env(el_env);
 
     let config_loc = var("LRTHROME_CONFIG").unwrap_or_else(|_| "config.toml".into());
 

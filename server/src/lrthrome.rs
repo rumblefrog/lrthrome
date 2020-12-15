@@ -181,6 +181,8 @@ impl Lrthrome {
         self.start_timers();
         self.temper_cache().await?;
 
+        info!("Started processing connections");
+
         loop {
             select! {
                 _ = tokio::signal::ctrl_c() => {
@@ -191,8 +193,9 @@ impl Lrthrome {
                     let (tx_shutdown, rx_shutdown) = watch::channel(false);
                     let (tx_bytes, rx_bytes) = mpsc::unbounded_channel();
 
-                    self.peers.insert(addr, PeerRegistry::new(tx_shutdown, tx_bytes));
+                    info!("Peer has connected (addr = {})", addr);
 
+                    self.peers.insert(addr, PeerRegistry::new(tx_shutdown, tx_bytes));
                     self.process_peer(Peer::new(addr, stream, rx_shutdown, rx_bytes));
                 }
                 Some(message) = self.rx.recv() => {
@@ -200,11 +203,17 @@ impl Lrthrome {
                         Message::CacheTick => self.temper_cache().await?,
                         Message::PeerTick => self.sweep_peers()?,
                         Message::PeerFrame(addr, buf) => {
+                            debug!("Received peer frame from {} (length = {})", addr, buf.len());
+
                             match Request::new(buf.as_ref()) {
                                 Ok(req) => {
+                                    debug!("Parsed request from {}", addr);
+
                                     if let Some(peer) = self.peers.get_mut(&addr) {
                                         // Peer reached ratelimit, disconnect
                                         if self.ratelimiter.check(addr.ip()).is_err() {
+                                            info!("Peer exceeded ratelimit (addr = {})", addr);
+
                                             Self::shutdown_peer(peer, &addr);
                                             self.cleanup();
 
@@ -217,9 +226,11 @@ impl Lrthrome {
 
                                         let resp = Response {
                                             in_filter: c.exist(req.ip_address),
-                                            limit: self.rate_limit.get() as u8,
+                                            rate_limit: self.rate_limit.get(),
                                             ip_address: req.ip_address,
                                         };
+
+                                        debug!("Replied to peer request (addr = {})", addr);
 
                                         if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
                                             error!("Unable to send response to {}: {}", addr, e);
@@ -235,6 +246,8 @@ impl Lrthrome {
                             }
                         },
                         Message::PeerDisconnected(addr) => {
+                            info!("Peer has disconnected (addr = {})", addr);
+
                             self.peers.remove(&addr);
                         }
                     }

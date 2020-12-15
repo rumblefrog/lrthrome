@@ -58,7 +58,7 @@ pub struct Response {
     // protocol_version
     pub in_filter: bool, // 1
 
-    pub limit: u8, // 1
+    pub rate_limit: u32, // 1
 
     pub ip_address: Ipv4Addr, // 4
 }
@@ -68,7 +68,8 @@ impl Response {
         let mut buf = BytesMut::new();
 
         buf.put_u8(PROTOCOL_VERSION);
-        buf.put_u8(((self.in_filter as u8) << 7) | self.limit);
+        buf.put_u8(self.in_filter as u8);
+        buf.put_u32_le(self.rate_limit);
         buf.put_u32_le(self.ip_address.into());
 
         buf.freeze()

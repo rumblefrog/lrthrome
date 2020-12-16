@@ -2,76 +2,25 @@
 
 #include <sourcemod>
 #include <socket>
-#include <bytebuffer>
-
-#pragma semicolon 1
-
-#define PLUGIN_AUTHOR "Fishy"
-
-#define MAX_EVENT_NAME_LENGTH 128
-#define MAX_COMMAND_LENGTH 512
+#include <bytebuff>
 
 #define PROTOCOL_VERSION 1
-
-#pragma newdecls required
-
-char g_sHostname[64];
-char g_sHost[64] = "127.0.0.1";
-char g_sToken[64];
-char g_sPrefix[8];
-
-int g_iPort = 57452;
-int g_iFlag;
-
-bool g_bFlag;
-
-// Core convars
-ConVar g_cHost;
-ConVar g_cPort;
-ConVar g_cPrefix;
-ConVar g_cFlag;
-ConVar g_cHostname;
-
-// Event convars
-ConVar g_cPlayerEvent;
-ConVar g_cMapEvent;
-
-// Socket connection handle
-Handle g_hSocket;
-
-// Forward handles
-Handle g_hMessageSendForward;
-Handle g_hMessageReceiveForward;
-Handle g_hEventSendForward;
-Handle g_hEventReceiveForward;
-
-EngineVersion g_evEngine;
 
 
 /**
  * Base message structure
  * 
  */
-methodmap BaseMessage < ByteBuffer
+methodmap Header < ByteBuffer
 {
-	public BaseMessage()
+	public Header()
 	{
-		return view_as<BaseMessage>(CreateByteBuffer());
+		return view_as<Header>(CreateByteBuffer());
 	}
 
-	public int ReadDiscardString()
+	public void baseHeader()
 	{
-		char cByte;
-
-		for(int i = 0; i < MAX_BUFFER_LENGTH; i++) {
-			cByte = this.ReadByte();
-			
-			if(cByte == '\0') {
-				return i + 1;
-			}
-		}
-		
-		return MAX_BUFFER_LENGTH;
+		this.writeByte(PROTOCOL_VERSION);
 	}
 
 	public void Dispatch()
@@ -91,17 +40,20 @@ methodmap BaseMessage < ByteBuffer
 	}
 }
 
-methodmap Request < BaseMessage
+methodmap Request < Header
 {
-	public void requestMessage(int ip_address, StringMap() keyvals)
+	public Request(int ip_address, StringMap() keyvals)
 	{
 		BaseMessage mreq = BaseMessage();
-		mreq.writeByte(PROTOCOL_VERSION);
+		mreq.baseHeader();
 		mreq.writeInt(ip_address);
 		mreq.writeInt(keyvals.Size);
-		/*for(int i = 0; i < keyvals.Snapshot().Length; i++){
-			m.writeString(keyvals)
-		}*/
+		for(int i = 0; i < keyvals.Snapshot().Length; i++){
+			keyvals.Snapshot().getKey(i, keyBuf);
+			keyvals.getString(keyBuf, valBuf);
+			mreq.writeString(keyBuf);
+			mreq.writeString(valBuf);
+		}
 	}
 
 }
@@ -130,32 +82,14 @@ methodmap Response < BaseMessage
 public void OnClientPostAdminCheck(int client)
 {		
 	StringMap mx = new StringMap();
-
+	char keyBuf[20];
+	char valBuf[20];
 	if (!IsClientConnected(client))
 		return;
 }
 
 public void OnPluginStart()
-{
-	/*CreateConVar("rf_scr_version", PLUGIN_VERSION, "Source Chat Relay Version", FCVAR_REPLICATED | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
-
-	g_cHost = CreateConVar("rf_scr_host", "127.0.0.1", "Relay Server Host", FCVAR_PROTECTED);
-
-	g_cPort = CreateConVar("rf_scr_port", "57452", "Relay Server Port", FCVAR_PROTECTED);
-	
-	g_cPrefix = CreateConVar("rf_scr_prefix", "", "Prefix required to send message to Discord. If empty, none is required.", FCVAR_NONE);
-	
-	g_cFlag = CreateConVar("rf_scr_flag", "", "If prefix is enabled, this admin flag is required to send message using the prefix", FCVAR_PROTECTED);
-
-	g_cHostname = CreateConVar("rf_scr_hostname", "", "The hostname/displayname to send with messages. If left empty, it will use the server's hostname", FCVAR_NONE);
-
-	// Start basic event convars
-	g_cPlayerEvent = CreateConVar("rf_scr_event_player", "0", "Enable player connect/disconnect events", FCVAR_NONE, true, 0.0, true, 1.0);
-	
-	g_cMapEvent = CreateConVar("rf_scr_event_map", "0", "Enable map start/end events", FCVAR_NONE, true, 0.0, true, 1.0);
-	
-	AutoExecConfig(true, "Source-Server-Relay");*/
-	
+{	
 	g_hSocket = SocketCreate(SOCKET_TCP, OnSocketError);
 
 	SocketSetOption(g_hSocket, SocketReuseAddr, 1);

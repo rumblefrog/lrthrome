@@ -19,7 +19,7 @@ use futures::sink::SinkExt;
 
 use crate::cache::Cache;
 use crate::error::LrthromeResult;
-use crate::protocol::{Request, Response};
+// use crate::protocol::{Request, Response};
 use crate::sources::Sources;
 
 pub struct Lrthrome {
@@ -207,47 +207,47 @@ impl Lrthrome {
                         Message::PeerFrame(addr, buf) => {
                             debug!("Received peer frame (addr = {}) (length = {})", addr, buf.len());
 
-                            match Request::new(buf.as_ref()) {
-                                Ok(req) => {
-                                    debug!("Parsed request (addr = {})", addr);
+                            // match Request::new(buf.as_ref()) {
+                            //     Ok(req) => {
+                            //         debug!("Parsed request (addr = {})", addr);
 
-                                    if let Some(peer) = self.peers.get_mut(&addr) {
-                                        // Peer reached ratelimit, disconnect
-                                        if self.ratelimiter.check(addr.ip()).is_err() {
-                                            info!("Peer exceeded ratelimit (addr = {})", addr);
+                            //         if let Some(peer) = self.peers.get_mut(&addr) {
+                            //             // Peer reached ratelimit, disconnect
+                            //             if self.ratelimiter.check(addr.ip()).is_err() {
+                            //                 info!("Peer exceeded ratelimit (addr = {})", addr);
 
-                                            Self::shutdown_peer(peer, &addr);
-                                            self.cleanup();
+                            //                 Self::shutdown_peer(peer, &addr);
+                            //                 self.cleanup();
 
-                                            continue;
-                                        }
+                            //                 continue;
+                            //             }
 
-                                        peer.last_request = Instant::now();
+                            //             peer.last_request = Instant::now();
 
-                                        let c = self.shared.cache.read().await;
+                            //             let c = self.shared.cache.read().await;
 
-                                        let resp = Response {
-                                            in_filter: c.exist(req.ip_address),
-                                            rate_limit: self.rate_limit.get(),
-                                            ip_address: req.ip_address,
-                                        };
+                            //             let resp = Response {
+                            //                 in_filter: c.exist(req.ip_address),
+                            //                 rate_limit: self.rate_limit.get(),
+                            //                 ip_address: req.ip_address,
+                            //             };
 
-                                        drop(c);
+                            //             drop(c);
 
-                                        debug!("Replied to peer request (addr = {})", addr);
+                            //             debug!("Replied to peer request (addr = {})", addr);
 
-                                        if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
-                                            error!("Unable to send response (addr = {}): {}", addr, e);
-                                        }
-                                    }
-                                },
-                                Err(_) => {
-                                    if let Some(peer) = self.peers.get_mut(&addr) {
-                                        Self::shutdown_peer(peer, &addr);
-                                        self.cleanup();
-                                    }
-                                }
-                            }
+                            //             if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
+                            //                 error!("Unable to send response (addr = {}): {}", addr, e);
+                            //             }
+                            //         }
+                            //     },
+                            //     Err(_) => {
+                            //         if let Some(peer) = self.peers.get_mut(&addr) {
+                            //             Self::shutdown_peer(peer, &addr);
+                            //             self.cleanup();
+                            //         }
+                            //     }
+                            // }
                         },
                         Message::PeerDisconnected(addr) => {
                             info!("Peer has disconnected (addr = {})", addr);

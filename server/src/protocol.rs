@@ -2,99 +2,105 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::net::Ipv4Addr;
 
-use bytes::{BufMut, Bytes, BytesMut};
-
-use byteorder::{LittleEndian, ReadBytesExt};
-
-use crate::error::{LrthromeError, LrthromeResult};
+use crate::error::{LrthromeError, ProtocolError, LrthromeResult};
 
 pub const PROTOCOL_VERSION: u8 = 1;
 
-// 01
-// 44 B4 08 16
-// 02
-// 66 6f 6f 00 62 61 72 00
+pub struct Header {
+    /// Current protocol version.
+    ///
+    /// Version is checked to ensure proper parsing on both sides.
+    protocol_version: u8,
+
+    /// Message variant to indicate parsing procedure.
+    /// Field is repr as u8 in networking.
+    variant: Variant,
+}
+
+/// Message variants for parsing procedure hint.
+///
+/// It is entirely feasible to house two separate version of a variant,
+/// on a single protocol version.
+/// In that scenario, two variants of the same purpose and implementation would co-exist.
+pub enum Variant {
+    /// Acknowledgement of peer connection.
+    /// Server public data will be transmitted to peer.
+    Established = 0,
+
+    /// Optional peer payload to server to identify or authenticate itself.
+    /// Authentication may grant higher limits in the future.
+    Identify = 1,
+
+    /// Request to check ip address against tree.
+    Request = 2,
+
+    /// Successful response indicating a longest match was found.
+    ResponseOkFound = 3,
+
+    /// Successful response indicating no result.
+    ResponseOkNotFound = 4,
+
+    /// Unsuccessful response.
+    /// This response is considered fatal, and peer should attempt at another time.
+    ResponseError = 5,
+}
+
+/// Server public data transmitted to peers.
+/// Peer should save and update this information upon receiving.
+pub struct Established {
+    /// Rate limit over the span of 5 seconds, allowing burst.
+    rate_limit: u32,
+
+    /// Number of entries within the lookup tree.
+    tree_size: u32,
+
+    /// Optional banner message
+    banner: String,
+}
+
+/// Optional peer request to identify/authenticate.
+pub struct Identify {
+    /// Identification token.
+    identification: String,
+}
+
+/// Request to check ip address against the tree.
 pub struct Request {
-    pub protocol_version: u8,
+    /// IPv4 address to check the tree for
+    ip_address: Ipv4Addr,
 
-    pub ip_address: Ipv4Addr,
+    /// Number of key value pairs to read
+    meta_count: u8,
 
-    // meta_count: u8,
-    pub meta: HashMap<String, String>, //key=value,
+    /// Key-value pairs
+    meta: HashMap<String, String>,
 }
 
-impl Request {
-    pub fn new(data: &[u8]) -> LrthromeResult<Self> {
-        let mut cursor = Cursor::new(data);
+/// Successful response indicating a longest match was found.
+pub struct ResponseOkFound {
+    /// IP address in which the result was found.
+    ip_address: Ipv4Addr,
 
-        let protocol_version = cursor.read_u8()?;
+    /// Longest match prefixed for the IP address.
+    prefix: Ipv4Addr,
 
-        if protocol_version != PROTOCOL_VERSION {
-            return Err(LrthromeError::ProtocolMismatch(
-                PROTOCOL_VERSION,
-                protocol_version,
-            ));
-        }
-
-        let ip_address = Ipv4Addr::from(cursor.read_u32::<LittleEndian>()?);
-
-        let meta_count = cursor.read_u8()?;
-
-        let mut meta: HashMap<String, String> = HashMap::new();
-
-        for _ in 0..=meta_count {
-            meta.insert(cursor.read_cstring()?, cursor.read_cstring()?);
-        }
-
-        Ok(Request {
-            protocol_version,
-            ip_address,
-            meta,
-        })
-    }
+    /// Prefix mask length.
+    mask_len: u32,
 }
 
-pub struct Response {
-    // protocol_version
-    pub in_filter: bool, // 1
-
-    pub rate_limit: u32, // 1
-
-    pub ip_address: Ipv4Addr, // 4
+/// Successful response indicating no result.
+pub struct ResponseOkNotFound {
+    /// IP address in which the result was not found.
+    ip_address: Ipv4Addr,
 }
 
-impl Response {
-    pub fn to_buf(&self) -> Bytes {
-        let mut buf = BytesMut::new();
+/// Unsuccessful response.
+/// This response is considered fatal, and peer should attempt at another time.
+pub struct ResponseError {
+    /// Corresponding error code for the message.
+    /// Useful for peer-side handling of error.
+    code: u8,
 
-        buf.put_u8(PROTOCOL_VERSION);
-        buf.put_u8(self.in_filter as u8);
-        buf.put_u32_le(self.rate_limit);
-        buf.put_u32_le(self.ip_address.into());
-
-        buf.freeze()
-    }
-}
-
-trait ReadCString {
-    fn read_cstring(&mut self) -> LrthromeResult<String>;
-}
-
-impl ReadCString for Cursor<&[u8]> {
-    fn read_cstring(&mut self) -> LrthromeResult<String> {
-        let end = self.get_ref().len() as u64;
-        let mut buf = [0; 1];
-        let mut str_vec = Vec::with_capacity(256);
-
-        while self.position() < end {
-            self.read_exact(&mut buf)?;
-            if buf[0] == 0 {
-                break;
-            } else {
-                str_vec.push(buf[0]);
-            }
-        }
-
-        Ok(String::from_utf8_lossy(&str_vec[..]).into_owned())
-    }
+    /// Human facing error message.
+    message: String,
 }

@@ -1,13 +1,13 @@
 use std::net::Ipv4Addr;
 use std::{collections::HashMap, convert::TryFrom};
 
-use nom::{IResult, bytes::complete::{
-        take_while,
-        tag,
-    }, multi::count, number::complete::{
-        le_u8,
-        le_u32,
-    }, sequence::{pair, terminated, tuple}};
+use nom::{
+    bytes::complete::{tag, take_while},
+    multi::count,
+    number::complete::{le_u32, le_u8},
+    sequence::{pair, terminated, tuple},
+    IResult,
+};
 
 use crate::error::{LrthromeError, LrthromeResult, ProtocolError};
 
@@ -115,10 +115,7 @@ pub struct ResponseError {
 
 impl Header {
     fn parse(input: &[u8]) -> IResult<&[u8], (u8, u8)> {
-        let (input, (protocol_version, variant)) = tuple((
-            |i| le_u8(i),
-            |i| le_u8(i),
-        ))(input)?;
+        let (input, (protocol_version, variant)) = tuple((le_u8, le_u8))(input)?;
 
         Ok((input, (protocol_version, variant)))
     }
@@ -148,18 +145,9 @@ impl Identify {
 
 impl Request {
     fn parse(input: &[u8]) -> IResult<&[u8], (u32, u8, Vec<(&[u8], &[u8])>)> {
-        let (input, (ip_addr, meta_count)) = tuple((
-            |i| le_u32(i),
-            |i| le_u8(i),
-        ))(input)?;
+        let (input, (ip_addr, meta_count)) = tuple((le_u32, le_u8))(input)?;
 
-        let (input, v) = count(
-            pair(
-                |i| parse_cstring(i),
-                |i| parse_cstring(i),
-            ),
-            meta_count as usize,
-        )(input)?;
+        let (input, v) = count(pair(parse_cstring, parse_cstring), meta_count as usize)(input)?;
 
         Ok((input, (ip_addr, meta_count, v)))
     }

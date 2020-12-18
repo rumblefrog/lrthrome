@@ -30,10 +30,7 @@ pub enum LrthromeError {
 #[derive(Debug, Error)]
 pub enum ProtocolError {
     #[error("Mismatching protocol version, expected {expected}, received {received}")]
-    VersionMismatch {
-        expected: u8,
-        received: u8,
-    },
+    VersionMismatch { expected: u8, received: u8 },
 
     #[error("Invalid message variant {0}")]
     InvalidMessageVariant(u8),

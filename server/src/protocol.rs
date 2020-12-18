@@ -1,8 +1,15 @@
-use std::collections::HashMap;
-use std::io::{Cursor, Read};
 use std::net::Ipv4Addr;
+use std::{collections::HashMap, convert::TryFrom};
 
-use crate::error::{LrthromeError, ProtocolError, LrthromeResult};
+use nom::{IResult, bytes::complete::{
+        take_while,
+        tag,
+    }, multi::count, number::complete::{
+        le_u8,
+        le_u32,
+    }, sequence::{pair, terminated, tuple}};
+
+use crate::error::{LrthromeError, LrthromeResult, ProtocolError};
 
 pub const PROTOCOL_VERSION: u8 = 1;
 
@@ -22,6 +29,7 @@ pub struct Header {
 /// It is entirely feasible to house two separate version of a variant,
 /// on a single protocol version.
 /// In that scenario, two variants of the same purpose and implementation would co-exist.
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Variant {
     /// Acknowledgement of peer connection.
     /// Server public data will be transmitted to peer.
@@ -103,4 +111,60 @@ pub struct ResponseError {
 
     /// Human facing error message.
     message: String,
+}
+
+impl Header {
+    fn parse(input: &[u8]) -> IResult<&[u8], (u8, u8)> {
+        let (input, (protocol_version, variant)) = tuple((
+            |i| le_u8(i),
+            |i| le_u8(i),
+        ))(input)?;
+
+        Ok((input, (protocol_version, variant)))
+    }
+}
+
+impl TryFrom<u8> for Variant {
+    type Error = ProtocolError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            x if x == Variant::Established as u8 => Ok(Variant::Established),
+            x if x == Variant::Identify as u8 => Ok(Variant::Identify),
+            x if x == Variant::Request as u8 => Ok(Variant::Request),
+            x if x == Variant::ResponseOkFound as u8 => Ok(Variant::ResponseOkFound),
+            x if x == Variant::ResponseOkNotFound as u8 => Ok(Variant::ResponseOkNotFound),
+            x if x == Variant::ResponseError as u8 => Ok(Variant::ResponseError),
+            x => Err(ProtocolError::InvalidMessageVariant(x)),
+        }
+    }
+}
+
+impl Identify {
+    fn parse(input: &[u8]) -> IResult<&[u8], &[u8]> {
+        parse_cstring(input)
+    }
+}
+
+impl Request {
+    fn parse(input: &[u8]) -> IResult<&[u8], (u32, u8, Vec<(&[u8], &[u8])>)> {
+        let (input, (ip_addr, meta_count)) = tuple((
+            |i| le_u32(i),
+            |i| le_u8(i),
+        ))(input)?;
+
+        let (input, v) = count(
+            pair(
+                |i| parse_cstring(i),
+                |i| parse_cstring(i),
+            ),
+            meta_count as usize,
+        )(input)?;
+
+        Ok((input, (ip_addr, meta_count, v)))
+    }
+}
+
+fn parse_cstring(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    terminated(take_while(|b| b != 0), tag([0]))(input)
 }

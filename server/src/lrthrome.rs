@@ -232,6 +232,8 @@ impl Lrthrome {
                                             ip_address: req.ip_address,
                                         };
 
+                                        drop(c);
+
                                         debug!("Replied to peer request (addr = {})", addr);
 
                                         if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {

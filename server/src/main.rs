@@ -2,8 +2,8 @@
 extern crate log;
 
 use std::env::var;
-use std::time::Duration;
 use std::num::NonZeroU32;
+use std::time::Duration;
 
 use env_logger::Env;
 

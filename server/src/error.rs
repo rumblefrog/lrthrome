@@ -37,7 +37,7 @@ impl LrthromeError {
         match *self {
             LrthromeError::MalformedPayload => 0,
             LrthromeError::Ratelimited => 1,
-            LrthromeError::VersionMismatch { expected, received } => 2,
+            LrthromeError::VersionMismatch { expected: _, received: _ } => 2,
             LrthromeError::InvalidMessageVariant(_) => 3,
             _ => 255,
         }

@@ -215,7 +215,7 @@ impl Lrthrome {
                             banner: "n/a",
                         }.to_bytes();
 
-                        Self::peer_send(addr, peer, payload);
+                        Self::peer_send(&addr, peer, payload);
                     }
                 }
                 Some(message) = self.rx.recv() => {
@@ -226,8 +226,9 @@ impl Lrthrome {
                             debug!("Received peer frame (addr = {}) (length = {})", addr, buf.len());
 
                             if let Err(e) = self.process_frame(addr, buf.as_ref()).await {
-                                if let Some(peer) =  self.peers.get_mut(&addr) {
-                                    Self::peer_error(addr, peer, e);
+                                if let Some(peer) = self.peers.get_mut(&addr) {
+                                    Self::peer_error(&addr, peer, e);
+                                    self.cleanup();
                                 }
                             }
                         },
@@ -246,7 +247,6 @@ impl Lrthrome {
     async fn process_frame(
         &mut self,
         addr: SocketAddr,
-        peer: &mut PeerRegistry,
         frame: &[u8],
     ) -> LrthromeResult<()> {
         let (frame, header) = Header::parse(frame).map_err(|_| LrthromeError::MalformedPayload)?;
@@ -296,7 +296,7 @@ impl Lrthrome {
                         .to_bytes(),
                     };
 
-                    Self::peer_send(addr, peer, resp);
+                    Self::peer_send(&addr, peer, resp);
                 }
             }
             _ => (),
@@ -305,17 +305,18 @@ impl Lrthrome {
         Ok(())
     }
 
-    fn peer_error(addr: SocketAddr, peer: &mut PeerRegistry, error: LrthromeError) {
+    fn peer_error(addr: &SocketAddr, peer: &mut PeerRegistry, error: LrthromeError) {
         let resp = ResponseError {
             code: error.code(),
-            message: error.to_string(),
+            message: &error.to_string(),
         }
         .to_bytes();
 
-        Self::peer_send(addr, peer, resp);
+        Self::peer_send(&addr, peer, resp);
+        Self::shutdown_peer(peer, &addr);
     }
 
-    fn peer_send(addr: SocketAddr, peer: &mut PeerRegistry, payload: Bytes) {
+    fn peer_send(addr: &SocketAddr, peer: &mut PeerRegistry, payload: Bytes) {
         if let Err(e) = peer.tx_bytes.send(payload) {
             error!("Unable to send payload to peer (addr = {}): {}", addr, e);
         }

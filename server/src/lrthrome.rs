@@ -260,6 +260,10 @@ impl Lrthrome {
         }
     }
 
+    fn handle_frame(&mut self) -> LrthromeResult<()> {
+        Ok(())
+    }
+
     fn shutdown_peer(peer: &mut PeerRegistry, addr: &SocketAddr) {
         if let Err(e) = peer.tx_shutdown.send(true) {
             error!("Unable to shutdown peer (addr = {}): {}", addr, e);

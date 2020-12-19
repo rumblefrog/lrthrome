@@ -244,11 +244,7 @@ impl Lrthrome {
     }
 
     #[inline]
-    async fn process_frame(
-        &mut self,
-        addr: SocketAddr,
-        frame: &[u8],
-    ) -> LrthromeResult<()> {
+    async fn process_frame(&mut self, addr: SocketAddr, frame: &[u8]) -> LrthromeResult<()> {
         let (frame, header) = Header::parse(frame).map_err(|_| LrthromeError::MalformedPayload)?;
 
         debug!(

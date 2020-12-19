@@ -190,12 +190,16 @@ impl fmt::Display for Variant {
 }
 
 impl<'a> Established<'a> {
+    /// Example payload.
+    ///
+    /// 0x01 0x00 0x64 0x00 0x00 0x00 0x02 0xbf 0x1e 0x00 0x6e 0x2f 0x61 0x00
     pub fn to_bytes(&self) -> Bytes {
         let mut buf = Header::new(Variant::Established).to_bytes();
 
         buf.put_u32_le(self.rate_limit);
         buf.put_u32_le(self.tree_size);
         buf.put_slice(self.banner.as_bytes());
+        buf.put_u8(0);
 
         buf.freeze()
     }
@@ -255,6 +259,7 @@ impl<'a> ResponseError<'a> {
 
         buf.put_u8(self.code);
         buf.put_slice(self.message.as_bytes());
+        buf.put_u8(0);
 
         buf.freeze()
     }
@@ -272,8 +277,11 @@ mod tests {
     use super::*;
 
     #[test]
+    #[rustfmt::skip]
     fn parse_valid_header() {
-        let payload: &[u8] = &[PROTOCOL_VERSION, 0x00];
+        let payload: &[u8] = &[
+            PROTOCOL_VERSION, 0x00,
+        ];
 
         let h = Header::parse(payload).unwrap();
 
@@ -287,8 +295,11 @@ mod tests {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn parse_invalid_version_header() {
-        let payload: &[u8] = &[0x64, 0x01];
+        let payload: &[u8] = &[
+            0x64, 0x01,
+        ];
 
         assert_ne!(payload[0], PROTOCOL_VERSION);
 
@@ -298,8 +309,11 @@ mod tests {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn parse_invalid_variant_header() {
-        let payload: &[u8] = &[PROTOCOL_VERSION, 0x64];
+        let payload: &[u8] = &[
+            PROTOCOL_VERSION, 0x64,
+        ];
 
         let h = Header::parse(payload);
 
@@ -307,16 +321,11 @@ mod tests {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn parse_valid_identify() {
         let payload: &[u8] = &[
-            PROTOCOL_VERSION,
-            Variant::Identify as u8,
-            0x66,
-            0x69,
-            0x73,
-            0x68,
-            0x79,
-            0x00, // fishy
+            PROTOCOL_VERSION, Variant::Identify as u8,
+            0x66, 0x69, 0x73, 0x68, 0x79, 0x00, // fishy
         ];
 
         let h = Header::parse(payload).unwrap();
@@ -329,84 +338,32 @@ mod tests {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn parse_valid_request() {
         let payload: &[u8] = &[
-            PROTOCOL_VERSION,
-            Variant::Request as u8,
-            0x01,
-            0x01,
-            0x01,
-            0x01, // IP address
+            PROTOCOL_VERSION, Variant::Request as u8,
+            0x01, 0x01, 0x01, 0x01, // IP address
             0x02, // Meta count
-            0x66,
-            0x6f,
-            0x6f,
-            0x00, // 0th pair's key
-            0x57,
-            0x65,
-            0x20,
-            0x6c,
-            0x69,
-            0x76,
-            0x65,
-            0x20,
-            0x69,
-            0x6e,
-            0x20,
-            0x61,
-            0x20,
-            0x74,
-            0x77,
-            0x69,
-            0x6c,
-            0x69,
-            0x67,
-            0x68,
-            0x74,
-            0x20,
-            0x77,
-            0x6f,
-            0x72,
-            0x6c,
-            0x64,
-            0x00, // 0th pair's value
-            0x62,
-            0x61,
-            0x72,
-            0x00, // 1th pair's key
-            0x61,
-            0x6e,
-            0x64,
-            0x20,
-            0x74,
-            0x68,
-            0x65,
-            0x72,
-            0x65,
-            0x20,
-            0x61,
-            0x72,
-            0x65,
-            0x20,
-            0x6e,
-            0x6f,
-            0x20,
-            0x66,
-            0x72,
-            0x69,
-            0x65,
-            0x6e,
-            0x64,
-            0x73,
-            0x20,
-            0x61,
-            0x74,
-            0x20,
-            0x64,
-            0x75,
-            0x73,
-            0x6b,
-            0x00, // 1th pair's value
+            0x66, 0x6f, 0x6f, 0x00, // 0th pair's key
+
+            0x57, 0x65, 0x20, 0x6c,
+            0x69, 0x76, 0x65, 0x20,
+            0x69, 0x6e, 0x20, 0x61,
+            0x20, 0x74, 0x77, 0x69,
+            0x6c, 0x69, 0x67, 0x68,
+            0x74, 0x20, 0x77, 0x6f,
+            0x72, 0x6c, 0x64, 0x00, // 0th pair's value
+
+            0x62, 0x61, 0x72, 0x00, // 1th pair's key
+
+            0x61, 0x6e, 0x64, 0x20,
+            0x74, 0x68, 0x65, 0x72,
+            0x65, 0x20, 0x61, 0x72,
+            0x65, 0x20, 0x6e, 0x6f,
+            0x20, 0x66, 0x72, 0x69,
+            0x65, 0x6e, 0x64, 0x73,
+            0x20, 0x61, 0x74, 0x20,
+            0x64, 0x75, 0x73, 0x6b, 0x00, // 1th pair's value
         ];
 
         let h = Header::parse(payload).unwrap();

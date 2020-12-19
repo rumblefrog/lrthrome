@@ -16,8 +16,12 @@ impl Cache {
         Self(IpLookupTable::new())
     }
 
-    pub fn exist(&self, addr: Ipv4Addr) -> bool {
-        self.0.longest_match(addr).is_some()
+    pub fn longest_match(&self, addr: Ipv4Addr) -> Option<(Ipv4Addr, u32)> {
+        self.0.longest_match(addr).map(|i| (i.0, i.1))
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     pub async fn temper(&mut self, sources: &Sources) -> LrthromeResult<()> {

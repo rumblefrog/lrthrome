@@ -1,5 +1,4 @@
 use thiserror::Error;
-
 #[derive(Debug, Error)]
 pub enum LrthromeError {
     #[error("IO error {0}")]
@@ -8,11 +7,17 @@ pub enum LrthromeError {
     #[error("Reqwest error {0}")]
     ReqwestError(#[from] reqwest::Error),
 
-    #[error("Mismatching protocol version, expected {0}, received {1}")]
-    ProtocolMismatch(u8, u8),
+    #[error("Malformed payload")]
+    MalformedPayload,
 
-    #[error("Protocol error: {0}")]
-    Protocol(#[from] ProtocolError),
+    #[error("Exceeded ratelimit")]
+    Ratelimited,
+
+    #[error("Mismatching protocol version, expected {expected}, received {received}")]
+    VersionMismatch { expected: u8, received: u8 },
+
+    #[error("Invalid message variant {0}")]
+    InvalidMessageVariant(u8),
 
     #[error("Invalid net address {0}")]
     InvalidAddress(#[from] std::net::AddrParseError),
@@ -27,13 +32,16 @@ pub enum LrthromeError {
     ShutdownWatchError(#[from] tokio::sync::watch::error::SendError<bool>),
 }
 
-#[derive(Debug, Error)]
-pub enum ProtocolError {
-    #[error("Mismatching protocol version, expected {expected}, received {received}")]
-    VersionMismatch { expected: u8, received: u8 },
-
-    #[error("Invalid message variant {0}")]
-    InvalidMessageVariant(u8),
+impl LrthromeError {
+    pub fn code(&self) -> u8 {
+        match *self {
+            LrthromeError::MalformedPayload => 0,
+            LrthromeError::Ratelimited => 1,
+            LrthromeError::VersionMismatch { expected, received } => 2,
+            LrthromeError::InvalidMessageVariant(_) => 3,
+            _ => 255,
+        }
+    }
 }
 
 pub type LrthromeResult<T> = std::result::Result<T, LrthromeError>;

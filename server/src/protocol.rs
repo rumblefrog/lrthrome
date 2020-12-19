@@ -1,14 +1,18 @@
+use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::fmt;
 use std::net::Ipv4Addr;
-use std::{collections::HashMap, convert::TryFrom};
 
-use nom::IResult;
+use bytes::{BufMut, Bytes, BytesMut};
+
 use nom::bytes::complete::{tag, take_while};
 use nom::combinator::{map, map_res};
 use nom::multi::count;
 use nom::number::complete::{le_u32, le_u8};
 use nom::sequence::{pair, terminated};
+use nom::IResult;
 
-use crate::error::ProtocolError;
+use crate::error::LrthromeError;
 
 pub const PROTOCOL_VERSION: u8 = 1;
 
@@ -60,13 +64,13 @@ pub enum Variant {
 /// Peer should save and update this information upon receiving.
 pub struct Established<'a> {
     /// Rate limit over the span of 5 seconds, allowing burst.
-    rate_limit: u32,
+    pub rate_limit: u32,
 
     /// Number of entries within the lookup tree.
-    tree_size: u32,
+    pub tree_size: u32,
 
     /// Optional banner message
-    banner: &'a str,
+    pub banner: &'a str,
 }
 
 /// Optional peer request to identify/authenticate.
@@ -90,19 +94,19 @@ pub struct Request<'n> {
 /// Successful response indicating a longest match was found.
 pub struct ResponseOkFound {
     /// IP address in which the result was found.
-    ip_address: Ipv4Addr,
+    pub ip_address: Ipv4Addr,
 
     /// Longest match prefixed for the IP address.
-    prefix: Ipv4Addr,
+    pub prefix: Ipv4Addr,
 
     /// Prefix mask length.
-    mask_len: u32,
+    pub mask_len: u32,
 }
 
 /// Successful response indicating no result.
 pub struct ResponseOkNotFound {
     /// IP address in which the result was not found.
-    ip_address: Ipv4Addr,
+    pub ip_address: Ipv4Addr,
 }
 
 /// Unsuccessful response.
@@ -110,18 +114,18 @@ pub struct ResponseOkNotFound {
 pub struct ResponseError<'a> {
     /// Corresponding error code for the message.
     /// Useful for peer-side handling of error.
-    code: u8,
+    pub code: u8,
 
     /// Human facing error message.
-    message: &'a str,
+    pub message: &'a str,
 }
 
 impl TryFrom<u8> for ProtocolVersion {
-    type Error = ProtocolError;
+    type Error = LrthromeError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         if value != PROTOCOL_VERSION {
-            return Err(ProtocolError::VersionMismatch{
+            return Err(LrthromeError::VersionMismatch {
                 expected: PROTOCOL_VERSION,
                 received: value,
             });
@@ -131,13 +135,9 @@ impl TryFrom<u8> for ProtocolVersion {
     }
 }
 
-
 impl Header {
-    fn parse(input: &[u8]) -> IResult<&[u8], Header>  {
-        let (input, protocol_version) = map_res(
-            le_u8,
-            ProtocolVersion::try_from,
-        )(input)?;
+    pub fn parse(input: &[u8]) -> IResult<&[u8], Header> {
+        let (input, protocol_version) = map_res(le_u8, ProtocolVersion::try_from)(input)?;
 
         let (input, variant) = map_res(le_u8, Variant::try_from)(input)?;
 
@@ -149,10 +149,26 @@ impl Header {
             },
         ))
     }
+
+    pub fn new(variant: Variant) -> Self {
+        Self {
+            protocol_version: ProtocolVersion(PROTOCOL_VERSION),
+            variant,
+        }
+    }
+
+    pub fn to_bytes(&self) -> BytesMut {
+        let mut buf = BytesMut::new();
+
+        buf.put_u8(self.protocol_version.0);
+        buf.put_u8(self.variant.clone() as u8);
+
+        buf
+    }
 }
 
 impl TryFrom<u8> for Variant {
-    type Error = ProtocolError;
+    type Error = LrthromeError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -162,13 +178,31 @@ impl TryFrom<u8> for Variant {
             x if x == Variant::ResponseOkFound as u8 => Ok(Variant::ResponseOkFound),
             x if x == Variant::ResponseOkNotFound as u8 => Ok(Variant::ResponseOkNotFound),
             x if x == Variant::ResponseError as u8 => Ok(Variant::ResponseError),
-            x => Err(ProtocolError::InvalidMessageVariant(x)),
+            x => Err(LrthromeError::InvalidMessageVariant(x)),
         }
     }
 }
 
+impl fmt::Display for Variant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl<'a> Established<'a> {
+    pub fn to_bytes(&self) -> Bytes {
+        let mut buf = Header::new(Variant::Established).to_bytes();
+
+        buf.put_u32_le(self.rate_limit);
+        buf.put_u32_le(self.tree_size);
+        buf.put_slice(self.banner.as_bytes());
+
+        buf.freeze()
+    }
+}
+
 impl<'n> Identify<'n> {
-    fn parse(input: &'n [u8]) -> IResult<&'n [u8], Identify<'n>> {
+    pub fn parse(input: &'n [u8]) -> IResult<&'n [u8], Identify<'n>> {
         let (input, identification) = parse_cstring(input)?;
 
         Ok((input, Identify { identification }))
@@ -176,7 +210,7 @@ impl<'n> Identify<'n> {
 }
 
 impl<'n> Request<'n> {
-    fn parse(input: &'n [u8]) -> IResult<&'n [u8], Request<'n>> {
+    pub fn parse(input: &'n [u8]) -> IResult<&'n [u8], Request<'n>> {
         let (input, ip_address) = map(le_u32, Ipv4Addr::from)(input)?;
         let (input, meta_count) = le_u8(input)?;
 
@@ -193,6 +227,39 @@ impl<'n> Request<'n> {
     }
 }
 
+impl ResponseOkFound {
+    pub fn to_bytes(&self) -> Bytes {
+        let mut buf = Header::new(Variant::ResponseOkFound).to_bytes();
+
+        buf.put_u32_le(u32::from(self.ip_address));
+        buf.put_u32_le(u32::from(self.prefix));
+        buf.put_u32_le(self.mask_len);
+
+        buf.freeze()
+    }
+}
+
+impl ResponseOkNotFound {
+    pub fn to_bytes(&self) -> Bytes {
+        let mut buf = Header::new(Variant::ResponseOkNotFound).to_bytes();
+
+        buf.put_u32_le(u32::from(self.ip_address));
+
+        buf.freeze()
+    }
+}
+
+impl<'a> ResponseError<'a> {
+    pub fn to_bytes(&self) -> Bytes {
+        let mut buf = Header::new(Variant::ResponseError).to_bytes();
+
+        buf.put_u8(self.code);
+        buf.put_slice(self.message.as_bytes());
+
+        buf.freeze()
+    }
+}
+
 fn parse_cstring(input: &[u8]) -> IResult<&[u8], &str> {
     map_res(
         terminated(take_while(|b| b != 0), tag([0])),
@@ -201,6 +268,7 @@ fn parse_cstring(input: &[u8]) -> IResult<&[u8], &str> {
 }
 
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]
@@ -220,9 +288,7 @@ mod tests {
 
     #[test]
     fn parse_invalid_version_header() {
-        let payload: &[u8] = &[
-            0x64, 0x01,
-        ];
+        let payload: &[u8] = &[0x64, 0x01];
 
         assert_ne!(payload[0], PROTOCOL_VERSION);
 
@@ -233,9 +299,7 @@ mod tests {
 
     #[test]
     fn parse_invalid_variant_header() {
-        let payload: &[u8] = &[
-            PROTOCOL_VERSION, 0x64,
-        ];
+        let payload: &[u8] = &[PROTOCOL_VERSION, 0x64];
 
         let h = Header::parse(payload);
 
@@ -245,8 +309,14 @@ mod tests {
     #[test]
     fn parse_valid_identify() {
         let payload: &[u8] = &[
-            PROTOCOL_VERSION, Variant::Identify as u8,
-            0x66, 0x69, 0x73, 0x68, 0x79, 0x00, // fishy
+            PROTOCOL_VERSION,
+            Variant::Identify as u8,
+            0x66,
+            0x69,
+            0x73,
+            0x68,
+            0x79,
+            0x00, // fishy
         ];
 
         let h = Header::parse(payload).unwrap();
@@ -261,29 +331,82 @@ mod tests {
     #[test]
     fn parse_valid_request() {
         let payload: &[u8] = &[
-            PROTOCOL_VERSION, Variant::Request as u8,
-            0x01, 0x01, 0x01, 0x01, // IP address
+            PROTOCOL_VERSION,
+            Variant::Request as u8,
+            0x01,
+            0x01,
+            0x01,
+            0x01, // IP address
             0x02, // Meta count
-            0x66, 0x6f, 0x6f, 0x00, // 0th pair's key
-
-            0x57, 0x65, 0x20, 0x6c,
-            0x69, 0x76, 0x65, 0x20,
-            0x69, 0x6e, 0x20, 0x61,
-            0x20, 0x74, 0x77, 0x69,
-            0x6c, 0x69, 0x67, 0x68,
-            0x74, 0x20, 0x77, 0x6f,
-            0x72, 0x6c, 0x64, 0x00, // 0th pair's value
-
-            0x62, 0x61, 0x72, 0x00, // 1th pair's key
-
-            0x61, 0x6e, 0x64, 0x20,
-            0x74, 0x68, 0x65, 0x72,
-            0x65, 0x20, 0x61, 0x72,
-            0x65, 0x20, 0x6e, 0x6f,
-            0x20, 0x66, 0x72, 0x69,
-            0x65, 0x6e, 0x64, 0x73,
-            0x20, 0x61, 0x74, 0x20,
-            0x64, 0x75, 0x73, 0x6b, 0x00, // 1th pair's value
+            0x66,
+            0x6f,
+            0x6f,
+            0x00, // 0th pair's key
+            0x57,
+            0x65,
+            0x20,
+            0x6c,
+            0x69,
+            0x76,
+            0x65,
+            0x20,
+            0x69,
+            0x6e,
+            0x20,
+            0x61,
+            0x20,
+            0x74,
+            0x77,
+            0x69,
+            0x6c,
+            0x69,
+            0x67,
+            0x68,
+            0x74,
+            0x20,
+            0x77,
+            0x6f,
+            0x72,
+            0x6c,
+            0x64,
+            0x00, // 0th pair's value
+            0x62,
+            0x61,
+            0x72,
+            0x00, // 1th pair's key
+            0x61,
+            0x6e,
+            0x64,
+            0x20,
+            0x74,
+            0x68,
+            0x65,
+            0x72,
+            0x65,
+            0x20,
+            0x61,
+            0x72,
+            0x65,
+            0x20,
+            0x6e,
+            0x6f,
+            0x20,
+            0x66,
+            0x72,
+            0x69,
+            0x65,
+            0x6e,
+            0x64,
+            0x73,
+            0x20,
+            0x61,
+            0x74,
+            0x20,
+            0x64,
+            0x75,
+            0x73,
+            0x6b,
+            0x00, // 1th pair's value
         ];
 
         let h = Header::parse(payload).unwrap();

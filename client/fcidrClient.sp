@@ -9,7 +9,7 @@
 
 /**
  * Base message structure
- * 
+ *
  */
 methodmap Header < ByteBuffer
 {
@@ -20,7 +20,11 @@ methodmap Header < ByteBuffer
 
 	public void baseHeader()
 	{
+<<<<<<< HEAD
 		this.writeByte(PROTOCOL_VERSION);
+=======
+		this.WriteByte(PROTOCOL_VERSION);
+>>>>>>> 39374856cfba3eb068559717518d602ce2c85a0c
 	}
 
 	public void Dispatch()
@@ -45,15 +49,20 @@ methodmap Request < Header
 	public Request(int ip_address, StringMap() keyvals)
 	{
 		BaseMessage mreq = BaseMessage();
+		StringMapSnapshot ss = keyvals.Snapshot();
+
 		mreq.baseHeader();
-		mreq.writeInt(ip_address);
-		mreq.writeInt(keyvals.Size);
-		for(int i = 0; i < keyvals.Snapshot().Length; i++){
-			keyvals.Snapshot().getKey(i, keyBuf);
+		mreq.WriteInt(ip_address);
+		mreq.WriteInt(keyvals.Size);
+
+		for(int i = 0; i < ss.Length; i++){
+			ss.getKey(i, keyBuf);
 			keyvals.getString(keyBuf, valBuf);
-			mreq.writeString(keyBuf);
-			mreq.writeString(valBuf);
+			mreq.WriteString(keyBuf);
+			mreq.WriteString(valBuf);
 		}
+
+		delete ss;
 	}
 
 }
@@ -65,22 +74,26 @@ methodmap Response < BaseMessage
 	{
 		BaseMessage mres = BaseMessage();
 		/*
+
 		char[] infoByte = info_byte.ConvertToString();
 		int infilByte = <int>infoByte[0]
 		char[7] limitByte = {};
+
 		for(int i = 1; i < 8; i++){
 			limitByte[i] = infoByte[i];
 		}
+
 		mres.writeByte(infilByte);
 		mres.writeByte(<int> limitByte);
 		mres.writeInt(ip_address);
+
 		*/
 	}
 }
 
 
 public void OnClientPostAdminCheck(int client)
-{		
+{
 	StringMap mx = new StringMap();
 	char keyBuf[20];
 	char valBuf[20];
@@ -89,12 +102,12 @@ public void OnClientPostAdminCheck(int client)
 }
 
 public void OnPluginStart()
-{	
+{
 	g_hSocket = SocketCreate(SOCKET_TCP, OnSocketError);
 
 	SocketSetOption(g_hSocket, SocketReuseAddr, 1);
 	SocketSetOption(g_hSocket, SocketKeepAlive, 1);
-	
+
 	#if defined DEBUG
 	SocketSetOption(g_hSocket, DebugMode, 1);
 	#endif

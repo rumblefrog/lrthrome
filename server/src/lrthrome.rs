@@ -17,10 +17,12 @@ use ratelimit_meter::{KeyedRateLimiter, GCRA};
 
 use futures::sink::SinkExt;
 
-use crate::cache::Cache;
 use crate::error::LrthromeResult;
-use crate::protocol::{Request, Response};
+use crate::protocol::{
+    Established, Header, Request, ResponseError, ResponseOkFound, ResponseOkNotFound, Variant,
+};
 use crate::sources::Sources;
+use crate::{cache::Cache, error::LrthromeError};
 
 pub struct Lrthrome {
     /// TCP listener bind for the lrthrome server.
@@ -199,6 +201,22 @@ impl Lrthrome {
 
                     self.peers.insert(addr, PeerRegistry::new(tx_shutdown, tx_bytes));
                     self.process_peer(Peer::new(addr, stream, rx_shutdown, rx_bytes));
+
+                    if let Some(peer) =  self.peers.get_mut(&addr) {
+                        let tree_size = {
+                            let c = self.shared.cache.read().await;
+
+                            c.len()
+                        };
+
+                        let payload = Established {
+                            rate_limit: self.rate_limit.into(),
+                            tree_size: tree_size as u32,
+                            banner: "n/a",
+                        }.to_bytes();
+
+                        Self::peer_send(&addr, peer, payload);
+                    }
                 }
                 Some(message) = self.rx.recv() => {
                     match message {
@@ -207,45 +225,10 @@ impl Lrthrome {
                         Message::PeerFrame(addr, buf) => {
                             debug!("Received peer frame (addr = {}) (length = {})", addr, buf.len());
 
-                            match Request::new(buf.as_ref()) {
-                                Ok(req) => {
-                                    debug!("Parsed request (addr = {})", addr);
-
-                                    if let Some(peer) = self.peers.get_mut(&addr) {
-                                        // Peer reached ratelimit, disconnect
-                                        if self.ratelimiter.check(addr.ip()).is_err() {
-                                            info!("Peer exceeded ratelimit (addr = {})", addr);
-
-                                            Self::shutdown_peer(peer, &addr);
-                                            self.cleanup();
-
-                                            continue;
-                                        }
-
-                                        peer.last_request = Instant::now();
-
-                                        let c = self.shared.cache.read().await;
-
-                                        let resp = Response {
-                                            in_filter: c.exist(req.ip_address),
-                                            rate_limit: self.rate_limit.get(),
-                                            ip_address: req.ip_address,
-                                        };
-
-                                        drop(c);
-
-                                        debug!("Replied to peer request (addr = {})", addr);
-
-                                        if let Err(e) = peer.tx_bytes.send(resp.to_buf()) {
-                                            error!("Unable to send response (addr = {}): {}", addr, e);
-                                        }
-                                    }
-                                },
-                                Err(_) => {
-                                    if let Some(peer) = self.peers.get_mut(&addr) {
-                                        Self::shutdown_peer(peer, &addr);
-                                        self.cleanup();
-                                    }
+                            if let Err(e) = self.process_frame(addr, buf.as_ref()).await {
+                                if let Some(peer) = self.peers.get_mut(&addr) {
+                                    Self::peer_error(&addr, peer, e);
+                                    self.cleanup();
                                 }
                             }
                         },
@@ -257,6 +240,81 @@ impl Lrthrome {
                     }
                 }
             }
+        }
+    }
+
+    #[inline]
+    async fn process_frame(&mut self, addr: SocketAddr, frame: &[u8]) -> LrthromeResult<()> {
+        let (frame, header) = Header::parse(frame).map_err(|_| LrthromeError::MalformedPayload)?;
+
+        debug!(
+            "Received peer frame (type = {}) (addr = {})",
+            header.variant.to_string(),
+            addr
+        );
+
+        match header.variant {
+            Variant::Identify => {
+                // Unused ATM
+                // let (_, identify) = Identify::parse(frame).map_err(|_| LrthromeError::MalformedPayload)?;
+            }
+            Variant::Request => {
+                let (_, request) =
+                    Request::parse(frame).map_err(|_| LrthromeError::MalformedPayload)?;
+
+                if let Some(peer) = self.peers.get_mut(&addr) {
+                    if self.ratelimiter.check(addr.ip()).is_err() {
+                        warn!("Peer exceeded ratelimit (addr = {})", addr);
+
+                        return Err(LrthromeError::Ratelimited);
+                    }
+
+                    peer.last_request = Instant::now();
+
+                    let longest_match = {
+                        let c = self.shared.cache.read().await;
+
+                        c.longest_match(request.ip_address)
+
+                        // Read guard dropped here
+                    };
+
+                    let resp = match longest_match {
+                        Some(m) => ResponseOkFound {
+                            ip_address: request.ip_address,
+                            prefix: m.0,
+                            mask_len: m.1,
+                        }
+                        .to_bytes(),
+                        None => ResponseOkNotFound {
+                            ip_address: request.ip_address,
+                        }
+                        .to_bytes(),
+                    };
+
+                    Self::peer_send(&addr, peer, resp);
+                }
+            }
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn peer_error(addr: &SocketAddr, peer: &mut PeerRegistry, error: LrthromeError) {
+        let resp = ResponseError {
+            code: error.code(),
+            message: &error.to_string(),
+        }
+        .to_bytes();
+
+        Self::peer_send(&addr, peer, resp);
+        Self::shutdown_peer(peer, &addr);
+    }
+
+    fn peer_send(addr: &SocketAddr, peer: &mut PeerRegistry, payload: Bytes) {
+        if let Err(e) = peer.tx_bytes.send(payload) {
+            error!("Unable to send payload to peer (addr = {}): {}", addr, e);
         }
     }
 

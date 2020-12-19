@@ -1,10 +1,14 @@
 use std::net::Ipv4Addr;
 use std::{collections::HashMap, convert::TryFrom};
 
-use nom::{IResult, Err, bytes::complete::{tag, take_while}, combinator::{map, map_res}, multi::count, number::complete::{le_u32, le_u8}, sequence::{pair, terminated, tuple}};
-use nom::error::{ParseError, FromExternalError};
+use nom::IResult;
+use nom::bytes::complete::{tag, take_while};
+use nom::combinator::{map, map_res};
+use nom::multi::count;
+use nom::number::complete::{le_u32, le_u8};
+use nom::sequence::{pair, terminated};
 
-use crate::error::{LrthromeError, LrthromeResult, ProtocolError};
+use crate::error::ProtocolError;
 
 pub const PROTOCOL_VERSION: u8 = 1;
 

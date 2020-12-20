@@ -26,7 +26,7 @@ impl Cache {
 
     pub async fn temper(&mut self, sources: &Sources) -> LrthromeResult<()> {
         for source in sources.sources() {
-            if !source.has_update() {
+            if !source.has_update().await {
                 continue;
             }
 

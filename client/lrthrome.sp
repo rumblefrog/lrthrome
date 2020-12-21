@@ -30,7 +30,7 @@ enum Variant {
 }
 
 /**
- * Base message structure
+ * Header structure
  *
  * @field protocol_version - Current protocol version. Version is checked to ensure proper parsing on both sides.
  * @field variant - Message variant to indicate parsing procedure.
@@ -65,6 +65,63 @@ methodmap Header < ByteBuffer
 	}
 }
 
+/**
+ * Established structure
+ *
+ * Server public data sent upon connection.
+ *
+ * @field rate_limit - Rate limit over the span of 5 seconds, allowing burst.
+ * @field tree_size - Number of entires within the lookup tree.
+ * @field banner - Optional banner message.
+ */
+methodmap Established < Header
+{
+    property int RateLimit
+    {
+        public get()
+        {
+            this.Cursor = 0;
+
+            this.ReadInt();
+        }
+    }
+
+    property int TreeSize
+    {
+        public get()
+        {
+            this.Cursor = 4;
+
+            this.ReadInt();
+        }
+    }
+
+    public int Banner(char[] buffer, int buffer_len)
+    {
+        this.Cursor = 8;
+
+        return this.ReadString(buffer, buffer_len);
+    }
+}
+
+/**
+ * Identify structure
+ *
+ * @field id - Identification token.
+ */
+methodmap Identify < Header
+{
+    public Identify(const char[] id)
+    {
+        Header header = new Header();
+
+        header.WriteHeader(VariantIdentify);
+        header.WriteString(id);
+
+        return view_as<Identify(header);
+    }
+}
+
 methodmap Request < Header
 {
 	public Request(int ip_address, StringMap meta)
@@ -88,12 +145,11 @@ methodmap Request < Header
             header.WriteString(value);
         }
 
-		delete ss;
+        delete ss;
         delete meta;
 
         return view_as<Request>(header);
 	}
-
 }
 
 

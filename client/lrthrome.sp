@@ -118,7 +118,7 @@ methodmap Identify < Header
         header.WriteHeader(VariantIdentify);
         header.WriteString(id);
 
-        return view_as<Identify(header);
+        return view_as<Identify>(header);
     }
 }
 

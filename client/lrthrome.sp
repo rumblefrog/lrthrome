@@ -132,7 +132,7 @@ methodmap Request < Header
 
         header.WriteHeader(VariantRequest);
         header.WriteInt(ip_address);
-        header.WriteInt(meta.Size);
+        header.WriteByte(meta.Size);
 
         char key[64], value[64];
 

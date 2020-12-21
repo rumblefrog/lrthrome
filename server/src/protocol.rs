@@ -39,10 +39,12 @@ pub struct Header {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Variant {
     /// Acknowledgement of peer connection.
+    ///
     /// Server public data will be transmitted to peer.
     Established = 0,
 
     /// Optional peer payload to server to identify or authenticate itself.
+    ///
     /// Authentication may grant higher limits in the future.
     Identify = 1,
 

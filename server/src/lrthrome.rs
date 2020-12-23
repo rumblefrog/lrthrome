@@ -354,30 +354,37 @@ impl Lrthrome {
             loop {
                 select! {
                     _ = peer.rx_shutdown.changed() => {
-                        let _ = shared.tx.send(Message::PeerDisconnected(peer.addr));
-
-                        // Exiting this function will drop peer, dropping the connection
-                        return;
+                        break;
                     }
                     Some(bytes) = peer.rx_bytes.recv() => {
                         if let Err(e) = peer.frame.send(bytes).await {
                             error!("Unable to send bytes to {}: {}", peer.addr, e);
                         }
                     }
-                    Some(message) = peer.frame.next() => {
-                        match message {
-                            Ok(buf) => {
-                                let _ = shared.tx.send(Message::PeerFrame(peer.addr, buf));
+                    frame = peer.frame.next() => {
+                        match frame {
+                            Some(message) => {
+                                match message {
+                                    Ok(buf) => {
+                                        let _ = shared.tx.send(Message::PeerFrame(peer.addr, buf));
+                                    },
+                                    Err(_) => {
+                                        break;
+                                    }
+                                }
                             },
-                            Err(_) => {
-                                let _ = shared.tx.send(Message::PeerDisconnected(peer.addr));
-
-                                return;
+                            None => {
+                                break;
                             }
                         }
                     }
                 }
             }
+
+            // Peer has no more frames, declare disconnect.
+            let _ = shared.tx.send(Message::PeerDisconnected(peer.addr));
+
+            // Exiting this future will drop peer, dropping the connection
         });
     }
 

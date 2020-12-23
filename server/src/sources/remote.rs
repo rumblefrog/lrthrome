@@ -24,7 +24,7 @@ impl Remote {
 impl Fetcher for Remote {
     // It is uncertain until the file is fetched again
     // Not all endpoints has E-tag to verify
-    fn has_update(&self) -> bool {
+    async fn has_update(&self) -> bool {
         true
     }
 

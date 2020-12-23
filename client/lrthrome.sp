@@ -4,9 +4,61 @@
 
 #define PROTOCOL_VERSION 1
 
-Handle g_hSocket;
+enum struct Connection
+{
+    Handle hSocket;
 
-enum Variant {
+    float fConnectedAt;
+    float fLastRequest;
+
+    void CreateSocket(SocketErrorCB efunc)
+    {
+        this.hSocket = SocketCreate(SOCKET_TCP, efunc);
+
+        SocketSetOption(this.hSocket, SocketReuseAddr, 1);
+        SocketSetOption(this.hSocket, SocketKeepAlive, 1);
+        SocketSetOption(this.hSocket, SocketSendTimeout, 3000);
+    }
+
+    void Connect
+        (
+            SocketConnectCB cfunc,
+            SocketReceiveCB rfunc,
+            SocketDisconnectCB dfunc,
+            const char[] hostname,
+            int port
+        )
+    {
+        SocketConnect(this.hSocket, cfunc, rfunc, dfunc, hostname, port);
+    }
+
+    void Send(const char[] data, int len)
+    {
+        SocketSend(this.hSocket, data, len);
+
+        this.fLastRequest = GetGameTime();
+    }
+
+    void TemperConnect()
+    {
+        this.fConnectedAt = GetGameTime();
+    }
+
+    bool Disconnect()
+    {
+        return SocketDisconnect(this.hSocket);
+    }
+
+    bool IsConnected()
+    {
+        return SocketIsConnected(this.hSocket);
+    }
+}
+
+Connection g_cConnection;
+
+enum Variant
+{
     // Acknowledgement of peer connection.
     // Server public data will be transmitted to peer.
     VariantEstablished = 0,
@@ -56,12 +108,12 @@ methodmap Header < ByteBuffer
 
 		this.Close();
 
-		if (!SocketIsConnected(g_hSocket))
+		if (g_cConnection.IsConnected())
 			return;
 
 		// Len required
 		// If len is not included, it will stop at the first \0 terminator
-		SocketSend(g_hSocket, sDump, iLen);
+		g_cConnection.Send(sDump, iLen);
 	}
 }
 

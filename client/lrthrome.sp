@@ -207,7 +207,9 @@ methodmap Request < Header
 /**
  * ResponseOkFound structure
  *
- * Modelled after Established struct. Uncertain about how to change based on Ipv4Addr type instead of u32 type
+ * @field ip_address - IP address in which the result was found.
+ * @field prefix - Longest match prefixed for the IP address.
+ * @field mask_len - Prefix mask length.
  */
 methodmap ResponseOkFound < Header
 {
@@ -245,7 +247,8 @@ methodmap ResponseOkFound < Header
 /**
  * ResponseOkNotFound structure
  *
- * Same uncertainty as commented in ResponseOkFound struct.
+ * @field ip_address - IP address in which the result was not found.
+ *
  */
 methodmap ResponseOkNotFound < Header
 {
@@ -270,7 +273,7 @@ methodmap ResponseError < Header
     {
         public get()
         {
-            return this.ReadInt();
+            return this.ReadByte();
         }
     }
 

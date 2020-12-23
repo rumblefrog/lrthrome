@@ -18,6 +18,10 @@ enum struct Connection
         SocketSetOption(this.hSocket, SocketReuseAddr, 1);
         SocketSetOption(this.hSocket, SocketKeepAlive, 1);
         SocketSetOption(this.hSocket, SocketSendTimeout, 3000);
+
+        #if defined DEBUG
+        SocketSetOption(this.hSocket, DebugMode, 1);
+        #endif
     }
 
     void Connect
@@ -283,23 +287,17 @@ methodmap ResponseError < Header
     }
 }
 
-// public void OnClientPostAdminCheck(int client)
-// {
-// 	StringMap mx = new StringMap();
-// 	char keyBuf[20];
-// 	char valBuf[20];
-// 	if (!IsClientConnected(client))
-// 		return;
-// }
+public void OnPluginStart()
+{
+    // g_cConnection.Create();
+}
 
-// public void OnPluginStart()
-// {
-// 	g_hSocket = SocketCreate(SOCKET_TCP, OnSocketError);
+public void OnClientPostAdminCheck(int client)
+{
+    if (!IsClientConnected(client))
+        return;
 
-// 	SocketSetOption(g_hSocket, SocketReuseAddr, 1);
-// 	SocketSetOption(g_hSocket, SocketKeepAlive, 1);
+    StringMap meta = new StringMap();
 
-// 	#if defined DEBUG
-// 	SocketSetOption(g_hSocket, DebugMode, 1);
-// 	#endif
-// }
+    // TODO: Build meta fields (steamid)
+}

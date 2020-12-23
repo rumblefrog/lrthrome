@@ -6,59 +6,7 @@
 
 Handle g_hSocket;
 
-enum struct Connection
-{
-    Handle hSocket;
-
-    float fConnectedAt;
-    float fLastRequest;
-
-    void CreateSocket(SocketErrorCB efunc)
-    {
-        this.hSocket = SocketCreate(SOCKET_TCP, efunc);
-
-        SocketSetOption(this.hSocket, SocketReuseAddr, 1);
-        SocketSetOption(this.hSocket, SocketKeepAlive, 1);
-        SocketSetOption(this.hSocket, SocketSendTimeout, 3000);
-    }
-
-    void Connect
-    (
-        SocketConnectCB cfunc,
-        SocketReceiveCB rfunc,
-        SocketDisconnectCB dfunc,
-        const char[] hostname,
-        int port,
-    )
-    {
-        SocketConnect(this.hSocket, cfunc, rfunc, dfunc, hostname, port);
-    }
-
-    void Send(const char[] data, int len)
-    {
-        SocketSend(this.hSocket, data, len);
-
-        this.fLastRequest = GetGameTime();
-    }
-
-    void TemperConnect()
-    {
-        this.fConnectedAt = GetGameTime();
-    }
-
-    bool Disconnect()
-    {
-        return SocketDisconnect(this.hSocket);
-    }
-
-    bool IsConnected()
-    {
-        return SocketIsConnected(this.hSocket);
-    }
-}
-
-enum Variant
-{
+enum Variant {
     // Acknowledgement of peer connection.
     // Server public data will be transmitted to peer.
     VariantEstablished = 0,
@@ -123,7 +71,7 @@ methodmap Header < ByteBuffer
  * Server public data sent upon connection.
  *
  * @field rate_limit - Rate limit over the span of 5 seconds, allowing burst.
- * @field tree_size - Number of entires within the lookup tree.
+ * @field tree_size - Number of entries within the lookup tree.
  * @field banner - Optional banner message.
  */
 methodmap Established < Header
@@ -204,30 +152,81 @@ methodmap Request < Header
 	}
 }
 
+/**
+ * ResponseOkFound structure
+ *
+ * Modelled after Established struct. Uncertain about how to change based on Ipv4Addr type instead of u32 type
+ */
+methodmap ResponseOkFound < Header
+{
+   property int IpAddress
+   {
+       public get()
+       {
+           this.Cursor = 0;
 
-// methodmap Response < BaseMessage
-// {
-// 	public void responseMessage(int ip_address/*,byte info_byte*/)
-// 	{
-// 		BaseMessage mres = BaseMessage();
-// 		/*
+           return this.ReadInt();
+       }
+   }
 
-// 		char[] infoByte = info_byte.ConvertToString();
-// 		int infilByte = <int>infoByte[0]
-// 		char[7] limitByte = {};
+   property int Prefix
+   {
+       public get()
+       {
+           this.Cursor = 4;
 
-// 		for(int i = 1; i < 8; i++){
-// 			limitByte[i] = infoByte[i];
-// 		}
+           return this.ReadInt();
+       }
+   }
 
-// 		mres.writeByte(infilByte);
-// 		mres.writeByte(<int> limitByte);
-// 		mres.writeInt(ip_address);
+   property int MaskLength
+   {
+       public get()
+       {
+           this.Cursor = 8;
 
-// 		*/
-// 	}
-// }
+           return this.ReadInt();
+       }
+   }
+}
 
+/**
+ * ResponseOkNotFound structure
+ *
+ * Same uncertainty as commented in ResponseOkFound struct.
+ */
+methodmap ResponseOkNotFound < Header
+{
+    property int IpAddress
+    {
+        public get()
+        {
+            return this.ReadInt();
+        }
+    }
+}
+
+/**
+ * ResponseError structure
+ *
+ * @field code - Corresponding error code for the message. Useful for peer-side handling of error.
+ * @field message - Human facing error message.
+ */
+methodmap ResponseError < Header
+{
+    property int Code
+    {
+        public get()
+        {
+            return this.ReadInt();
+        }
+    }
+
+    public int Message(char[] buffer, int buffer_len)
+    {
+        return this.ReadString(buffer, buffer_len);
+    }
+}
 
 // public void OnClientPostAdminCheck(int client)
 // {

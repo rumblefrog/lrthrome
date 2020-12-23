@@ -178,6 +178,15 @@ methodmap Identify < Header
     }
 }
 
+/**
+ * Request structure
+ *
+ * @field ip_address - IP address to check filter for
+ * @field meta_size - Number of entries in the meta kv map
+ * @field meta - Repeated key/value pairs
+ *    @repeated key
+ *    @repeated value
+ */
 methodmap Request < Header
 {
 	public Request(int ip_address, StringMap meta)

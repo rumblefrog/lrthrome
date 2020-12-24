@@ -1,0 +1,35 @@
+name: Build Client
+on:
+  push:
+    paths:
+      - '**.sp'
+
+jobs:
+  build:
+    name: Build
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        sm-version: ["1.10.x", "1.11.x"]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup SP Compiler ${{ matrix.sm-version }}
+        id: setup-sp
+        uses: rumblefrog/setup-sp@master
+        with:
+          version: ${{ matrix.sm-version }}
+
+      - name: Fetch plugin dependencies
+        run: |
+          mkdir includes
+          wget https://raw.githubusercontent.com/nefarius/sm-ext-socket/master/socket.inc -P includes
+          wget https://raw.githubusercontent.com/rumblefrog/SM-ByteBuffer-Inc/master/bytebuffer.inc -P includes
+
+      - name: Build client against ${{ steps.setup-sp.outputs.version }}
+        run: |
+          mkdir build
+          spcomp64 -iincludes client/lrthrome.sp -o build/lrthrome.smx

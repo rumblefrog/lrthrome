@@ -71,6 +71,14 @@ pub struct Established<'a> {
     /// Number of entries within the lookup tree.
     pub tree_size: u32,
 
+    /// Cache time-to-live.
+    /// Interval in seconds the cache will be purged and fetched again.
+    pub cache_ttl: u32,
+
+    /// Peer time-to-live.
+    /// Interval that a peer's connection can stay alive without additional requests.
+    pub peer_ttl: u32,
+
     /// Optional banner message
     pub banner: &'a str,
 }
@@ -192,14 +200,13 @@ impl fmt::Display for Variant {
 }
 
 impl<'a> Established<'a> {
-    /// Example payload.
-    ///
-    /// 0x01 0x00 0x64 0x00 0x00 0x00 0x02 0xbf 0x1e 0x00 0x6e 0x2f 0x61 0x00
     pub fn to_bytes(&self) -> Bytes {
         let mut buf = Header::new(Variant::Established).to_bytes();
 
         buf.put_u32_le(self.rate_limit);
         buf.put_u32_le(self.tree_size);
+        buf.put_u32_le(self.cache_ttl);
+        buf.put_u32_le(self.peer_ttl);
         buf.put_slice(self.banner.as_bytes());
         buf.put_u8(0);
 

@@ -15,11 +15,11 @@ pub struct General {
 
     /// Cache time-to-live.
     /// Interval in seconds the cache will be purged and fetched again.
-    pub cache_ttl: u64,
+    pub cache_ttl: u32,
 
     /// Peer time-to-live.
     /// Interval that a peer's connection can stay alive without additional requests.
-    pub peer_ttl: u64,
+    pub peer_ttl: u32,
 
     /// Maximum rate over the span of 5 seconds.
     /// Multiple connections on a single IP address are aggregated together.

@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     lrthrome
-        .cache_ttl(Duration::from_secs(config.general.cache_ttl))
-        .peer_ttl(Duration::from_secs(config.general.peer_ttl));
+        .cache_ttl(config.general.cache_ttl)
+        .peer_ttl(config.general.peer_ttl);
 
     info!("Lrthrome started");
 

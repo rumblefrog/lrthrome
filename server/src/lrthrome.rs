@@ -54,13 +54,13 @@ pub struct Lrthrome {
     /// Cache time-to-live.
     ///
     /// The amount of time between temperance.
-    cache_ttl: Duration,
+    cache_ttl: u32,
 
     /// Peer time-to-live.
     ///
     /// The amount of time a peer is allowed to keep their connection open
     /// without making an additional request to refresh the timeout.
-    peer_ttl: Duration,
+    peer_ttl: u32,
 
     /// Ratelimiter for individual IP address.
     ///
@@ -155,10 +155,10 @@ impl Lrthrome {
             peers: HashMap::new(),
 
             // Default cache time-to-live to 24 hours.
-            cache_ttl: Duration::from_secs(86400),
+            cache_ttl: 86400,
 
             // Default peer time-to-live to 15 seconds.
-            peer_ttl: Duration::from_secs(15),
+            peer_ttl: 15,
             ratelimiter: KeyedRateLimiter::new(rate_limit, Duration::from_secs(5)),
             rate_limit,
             sources,
@@ -166,13 +166,13 @@ impl Lrthrome {
         })
     }
 
-    pub fn cache_ttl(&mut self, dur: Duration) -> &mut Self {
+    pub fn cache_ttl(&mut self, dur: u32) -> &mut Self {
         self.cache_ttl = dur;
 
         self
     }
 
-    pub fn peer_ttl(&mut self, dur: Duration) -> &mut Self {
+    pub fn peer_ttl(&mut self, dur: u32) -> &mut Self {
         self.peer_ttl = dur;
 
         self
@@ -212,6 +212,8 @@ impl Lrthrome {
                         let payload = Established {
                             rate_limit: self.rate_limit.into(),
                             tree_size: tree_size as u32,
+                            cache_ttl: self.cache_ttl,
+                            peer_ttl: self.peer_ttl,
                             banner: "n/a",
                         }.to_bytes();
 
@@ -338,7 +340,7 @@ impl Lrthrome {
 
     fn sweep_peers(&mut self) -> LrthromeResult<()> {
         for c in self.peers.values() {
-            if c.last_request.elapsed() > self.peer_ttl {
+            if c.last_request.elapsed() > Duration::from_secs(self.peer_ttl as u64) {
                 c.tx_shutdown.send(true)?;
             }
         }
@@ -393,7 +395,7 @@ impl Lrthrome {
     /// Peer & Cache TTL timers will initialize here.
     fn start_timers(&mut self) {
         let shared = self.shared.clone();
-        let cache_ttl = self.cache_ttl;
+        let cache_ttl = Duration::from_secs(self.cache_ttl as u64);
 
         tokio::spawn(async move {
             loop {
@@ -406,7 +408,7 @@ impl Lrthrome {
         });
 
         let shared = self.shared.clone();
-        let peer_ttl = self.peer_ttl;
+        let peer_ttl = Duration::from_secs(self.peer_ttl as u64);
 
         tokio::spawn(async move {
             loop {

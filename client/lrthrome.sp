@@ -20,7 +20,6 @@ enum struct Connection
         this.hSocket = SocketCreate(SOCKET_TCP, efunc);
 
         SocketSetOption(this.hSocket, SocketReuseAddr, 1);
-        SocketSetOption(this.hSocket, SocketKeepAlive, 1);
         SocketSetOption(this.hSocket, SocketSendTimeout, 3000);
 
         #if defined DEBUG
@@ -106,7 +105,7 @@ methodmap Header < ByteBuffer
         {
             this.Cursor = 0;
 
-            this.ReadByte();
+            return this.ReadByte();
         }
     }
 
@@ -126,6 +125,13 @@ methodmap Header < ByteBuffer
         this.WriteByte(view_as<int>(v));
     }
 
+    public int DataCursor()
+    {
+        this.Cursor = 2;
+
+        return this.Cursor;
+    }
+
 	public void Dispatch()
 	{
 		char sDump[MAX_BUFFER_LENGTH];
@@ -134,7 +140,7 @@ methodmap Header < ByteBuffer
 
 		this.Close();
 
-		if (g_cConnection.IsConnected())
+		if (!g_cConnection.IsConnected())
 			return;
 
 		// Len required
@@ -158,9 +164,9 @@ methodmap Established < Header
     {
         public get()
         {
-            this.Cursor = 0;
+            this.DataCursor();
 
-            this.ReadInt();
+            return this.ReadInt();
         }
     }
 
@@ -168,9 +174,9 @@ methodmap Established < Header
     {
         public get()
         {
-            this.Cursor = 4;
+            this.Cursor = this.DataCursor() + 4;
 
-            this.ReadInt();
+            return this.ReadInt();
         }
     }
 
@@ -178,9 +184,9 @@ methodmap Established < Header
     {
         public get()
         {
-            this.Cursor = 8;
+            this.Cursor = this.DataCursor() + 8;
 
-            this.ReadInt();
+            return this.ReadInt();
         }
     }
 
@@ -188,15 +194,15 @@ methodmap Established < Header
     {
         public get()
         {
-            this.Cursor = 12;
+            this.Cursor = this.DataCursor() + 12;
 
-            this.ReadInt();
+            return this.ReadInt();
         }
     }
 
     public int Banner(char[] buffer, int buffer_len)
     {
-        this.Cursor = 16;
+        this.Cursor = this.DataCursor() + 16;
 
         return this.ReadString(buffer, buffer_len);
     }
@@ -271,7 +277,7 @@ methodmap ResponseOkFound < Header
    {
        public get()
        {
-           this.Cursor = 0;
+           this.Cursor = this.DataCursor();
 
            return this.ReadInt();
        }
@@ -281,7 +287,7 @@ methodmap ResponseOkFound < Header
    {
        public get()
        {
-           this.Cursor = 4;
+           this.Cursor = this.DataCursor() + 4;
 
            return this.ReadInt();
        }
@@ -291,7 +297,7 @@ methodmap ResponseOkFound < Header
    {
        public get()
        {
-           this.Cursor = 8;
+           this.Cursor = this.DataCursor() + 8;
 
            return this.ReadInt();
        }
@@ -310,6 +316,8 @@ methodmap ResponseOkNotFound < Header
     {
         public get()
         {
+            this.DataCursor();
+
             return this.ReadInt();
         }
     }
@@ -327,12 +335,16 @@ methodmap ResponseError < Header
     {
         public get()
         {
+            this.DataCursor();
+
             return this.ReadByte();
         }
     }
 
     public int Message(char[] buffer, int buffer_len)
     {
+        this.Cursor = this.DataCursor() + 1;
+
         return this.ReadString(buffer, buffer_len);
     }
 }
@@ -382,8 +394,8 @@ public void OnClientPostAdminCheck(int client)
     if (!IsClientConnected(client))
         return;
 
-    if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_GENERIC))
-        return;
+    // if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_GENERIC))
+    //     return;
 
     if (g_cConnection.IsConnected())
     {
@@ -400,10 +412,6 @@ public void OnClientPostAdminCheck(int client)
 
 void ProcessUser(int client)
 {
-    // Client may have disconnected by socket connection
-    if (!IsClientConnected(client))
-        return;
-
     char steamid[32], ip_str[32];
 
     GetClientAuthId(client, AuthId_Steam3, steamid, sizeof steamid);
@@ -429,8 +437,11 @@ public void OnSocketConnect(Handle socket, any arg)
 {
     g_cConnection.bConnecting = false;
 
+    int client;
+
     for (int i = 0; i < g_aQueue.Length; i += 1)
-        ProcessUser(g_aQueue.Get(i));
+        if ((client = GetClientOfUserId(g_aQueue.Get(i))) != 0)
+            ProcessUser(client);
 
     g_aQueue.Clear();
 }
@@ -520,11 +531,13 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
 public void OnSocketDisconnect(Handle socket, any arg)
 {
     g_cConnection.bConnecting = false;
+    g_cConnection.Disconnect();
 }
 
 public void OnSocketError(Handle socket, const int errorType, const int errorNum, any arg)
 {
     g_cConnection.bConnecting = false;
+    g_cConnection.Disconnect();
 
     if (errorType == EMPTY_HOST)
         SetFailState("Empty host address provided");

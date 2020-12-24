@@ -199,26 +199,26 @@ impl Lrthrome {
 
                     info!("Peer has connected (addr = {})", addr);
 
-                    self.peers.insert(addr, PeerRegistry::new(tx_shutdown, tx_bytes));
+                    let mut peer = PeerRegistry::new(tx_shutdown, tx_bytes);
+
+                    let tree_size = {
+                        let c = self.shared.cache.read().await;
+
+                        c.len()
+                    };
+
+                    let payload = Established {
+                        rate_limit: self.rate_limit.into(),
+                        tree_size: tree_size as u32,
+                        cache_ttl: self.cache_ttl,
+                        peer_ttl: self.peer_ttl,
+                        banner: "n/a",
+                    }.to_bytes();
+
+                    Self::peer_send(&addr, &mut peer, payload);
+
+                    self.peers.insert(addr, peer);
                     self.process_peer(Peer::new(addr, stream, rx_shutdown, rx_bytes));
-
-                    if let Some(peer) =  self.peers.get_mut(&addr) {
-                        let tree_size = {
-                            let c = self.shared.cache.read().await;
-
-                            c.len()
-                        };
-
-                        let payload = Established {
-                            rate_limit: self.rate_limit.into(),
-                            tree_size: tree_size as u32,
-                            cache_ttl: self.cache_ttl,
-                            peer_ttl: self.peer_ttl,
-                            banner: "n/a",
-                        }.to_bytes();
-
-                        Self::peer_send(&addr, peer, payload);
-                    }
                 }
                 Some(message) = self.rx.recv() => {
                     match message {

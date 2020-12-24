@@ -394,8 +394,8 @@ public void OnClientPostAdminCheck(int client)
     if (!IsClientConnected(client))
         return;
 
-    // if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_GENERIC))
-    //     return;
+    if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_GENERIC))
+        return;
 
     if (g_cConnection.IsConnected())
     {

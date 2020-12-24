@@ -7,7 +7,7 @@ Lrthrome is:
 - A stateless TCP server and protocol with optional identification.
 - In-memory IPv4 CIDR lookup tree.
 - Interval lookup tree automatic updating.
-- Soft and hard client keep-alive duration.
+- Limited peer keep-alive duration.
 - Request GCRA based ratelimiter.
 
 ## Current implemented sources

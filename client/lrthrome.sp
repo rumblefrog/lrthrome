@@ -15,9 +15,6 @@ enum struct Connection
 
     bool bConnecting;
 
-    float fConnectedAt;
-    float fLastRequest;
-
     void Create(SocketErrorCB efunc)
     {
         this.hSocket = SocketCreate(SOCKET_TCP, efunc);
@@ -51,13 +48,6 @@ enum struct Connection
     void Send(const char[] data, int len)
     {
         SocketSend(this.hSocket, data, len);
-
-        this.fLastRequest = GetGameTime();
-    }
-
-    void TemperConnect()
-    {
-        this.fConnectedAt = GetGameTime();
     }
 
     bool Disconnect()

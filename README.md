@@ -8,7 +8,7 @@ Lrthrome is:
 - In-memory IPv4 CIDR lookup tree.
 - Interval lookup tree automatic updating.
 - Soft and hard client keep-alive duration.
-- GCRA based request based ratelimiter.
+- Request GCRA based ratelimiter.
 
 ## Current implemented sources
 

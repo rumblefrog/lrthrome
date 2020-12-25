@@ -60,6 +60,27 @@ enum struct Connection
     }
 }
 
+enum State
+{
+    // Pending to be sent over socket.
+    Pending,
+
+    // Sent over socket, but no reply yet.
+    Sent,
+
+    // Sent and received response, ready for removal from queue.
+    Complete,
+}
+
+enum struct Queue
+{
+    int user_id;
+
+    char ip_address[32];
+
+    State state;
+}
+
 Connection g_cConnection;
 
 enum Variant
@@ -349,7 +370,6 @@ methodmap ResponseError < Header
     }
 }
 
-// ArrayList of user reference ids to be processed
 ArrayList g_aQueue;
 
 ConVar g_cHost;
@@ -380,7 +400,7 @@ public void OnPluginStart()
 
     g_cConnection.Create(OnSocketError);
 
-    g_aQueue = new ArrayList();
+    g_aQueue = new ArrayList(sizeof Queue);
 }
 
 public void OnConfigExecuted()
@@ -404,8 +424,14 @@ public void OnClientPostAdminCheck(int client)
         return;
     }
 
+    Queue queue;
+
+    queue.user_id = GetClientUserId(client);
+    queue.state = Pending;
+    GetClientIP(client, queue.ip_address, sizeof Queue::ip_address, true);
+
     // Otherwise, push to queue and process upon connection
-    g_aQueue.Push(GetClientUserId(client));
+    g_aQueue.PushArray(queue);
 
     g_cConnection.Connect(OnSocketConnect, OnSocketReceive, OnSocketDisconnect, g_sHost, g_iPort);
 }
@@ -414,8 +440,11 @@ void ProcessUser(int client)
 {
     char steamid[32], ip_str[32];
 
-    GetClientAuthId(client, AuthId_Steam3, steamid, sizeof steamid);
-    GetClientIP(client, ip_str, sizeof ip_str, true);
+    if(!GetClientAuthId(client, AuthId_Steam3, steamid, sizeof steamid))
+        return;
+
+    if (!GetClientIP(client, ip_str, sizeof ip_str, true))
+        return;
 
     int ip;
 
@@ -431,6 +460,21 @@ void ProcessUser(int client)
     delete meta;
 }
 
+// Clear queue of complete requests
+void PurgeQueue()
+{
+    Queue queue;
+
+    // Reversal to prevent disruption of index order with Erase
+    for (int i = g_aQueue.Length; i >= 0; i -= 1)
+    {
+        g_aQueue.GetArray(i, queue);
+
+        if (queue.state == Complete)
+            g_aQueue.Erase(i);
+    }
+}
+
 public Action DummyCmd(int c, int i) {}
 
 public void OnSocketConnect(Handle socket, any arg)
@@ -439,11 +483,29 @@ public void OnSocketConnect(Handle socket, any arg)
 
     int client;
 
-    for (int i = 0; i < g_aQueue.Length; i += 1)
-        if ((client = GetClientOfUserId(g_aQueue.Get(i))) != 0)
-            ProcessUser(client);
+    Queue queue;
 
-    g_aQueue.Clear();
+    for (int i = 0; i < g_aQueue.Length; i += 1)
+    {
+        g_aQueue.GetArray(i, queue);
+
+        if (queue.state == Pending)
+        {
+            if ((client = GetClientOfUserId(queue.user_id)) != 0)
+            {
+                queue.state = Sent;
+
+                ProcessUser(client);
+            }
+            // Client no longer exists, mark for complete
+            else
+            {
+                queue.state = Complete;
+            }
+        }
+
+        g_aQueue.SetArray(i, queue);
+    }
 }
 
 public void OnSocketReceive(Handle socket, const char[] receiveData, const int dataSize, any arg)
@@ -475,31 +537,40 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
             LongToIP(r.IpAddress, ip, sizeof ip);
             LongToIP(r.Prefix, prefix, sizeof prefix);
 
-            char client_ip[32];
+            Queue queue;
 
-            for (int i = 1; i <= MaxClients; i += 1)
+            for (int i = 0; i < g_aQueue.Length; i += 1)
             {
-                if (!IsClientConnected(i))
+                g_aQueue.GetArray(i, queue);
+
+                if (queue.state != Sent)
                     continue;
 
-                if (!GetClientIP(i, client_ip, sizeof client_ip, true))
-                    continue;
-
-                if (StrEqual(ip, client_ip))
+                if (StrEqual(ip, queue.ip_address))
                 {
+                    queue.state = Complete;
+                    g_aQueue.SetArray(i, queue);
+
+                    int client;
+
+                    if ((client = GetClientOfUserId(queue.user_id)) == 0)
+                        break;
+
                     char steamid[32];
 
-                    if (!GetClientAuthId(i, AuthId_Steam3, steamid, sizeof steamid))
-                        continue;
+                    if (!GetClientAuthId(client, AuthId_Steam3, steamid, sizeof steamid))
+                        break;
 
                     // TODO: Translation support
-                    KickClient(i, "Lrthrome Filtered");
+                    KickClient(client, "Lrthrome Filtered");
 
-                    LogMessage("Lrthrome: Kicked %N (%s) (%s) in range of %s/%i", i, steamid, ip, prefix, r.MaskLength);
+                    LogMessage("Lrthrome: Kicked %N (%s) (%s) in range of %s/%i", client, steamid, ip, prefix, r.MaskLength);
 
                     break;
                 }
             }
+
+            PurgeQueue();
         }
         case VariantResponseOkNotFound:
         {
@@ -509,8 +580,6 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
         {
             ResponseError r = view_as<ResponseError>(header);
 
-            // TODO: Keep a local record of requests sent and received
-            // For all requests sent and not received, it will re-queue for next connection
             char error_msg[64];
 
             r.Message(error_msg, sizeof error_msg);
@@ -518,6 +587,21 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
             LogError("Lrthrome error: %s", error_msg);
 
             g_cConnection.Disconnect();
+
+            // Iterate local records of requests, requests in Sent state is re-queued to Pending
+            Queue queue;
+
+            for (int i = 0; i < g_aQueue.Length; i += 1)
+            {
+                g_aQueue.GetArray(i, queue);
+
+                if (queue.state == Sent)
+                {
+                    queue.state = Pending;
+
+                    g_aQueue.SetArray(i, queue);
+                }
+            }
         }
         default:
         {

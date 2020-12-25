@@ -414,6 +414,9 @@ public void OnClientPostAdminCheck(int client)
     if (!IsClientConnected(client))
         return;
 
+    if (IsFakeClient(client))
+        return;
+
     if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_RESERVATION))
         return;
 

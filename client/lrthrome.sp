@@ -376,7 +376,7 @@ public void OnPluginStart()
 
     g_cPort = CreateConVar("lrthrome_port", "25597", "Lrthrome server host port", FCVAR_PROTECTED);
 
-    RegAdminCmd("lrthrome_override", DummyCmd, ADMFLAG_GENERIC, "Lrthrome override, users with access skips IP lookup");
+    RegAdminCmd("lrthrome_override", DummyCmd, ADMFLAG_RESERVATION, "Lrthrome override, users with access skips IP lookup");
 
     g_cConnection.Create(OnSocketError);
 
@@ -394,7 +394,7 @@ public void OnClientPostAdminCheck(int client)
     if (!IsClientConnected(client))
         return;
 
-    if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_GENERIC))
+    if (CheckCommandAccess(client, "lrthrome_override", ADMFLAG_RESERVATION))
         return;
 
     if (g_cConnection.IsConnected())

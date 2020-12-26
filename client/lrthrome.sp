@@ -469,7 +469,7 @@ void PurgeQueue()
     Queue queue;
 
     // Reversal to prevent disruption of index order with Erase
-    for (int i = g_aQueue.Length; i >= 0; i -= 1)
+    for (int i = g_aQueue.Length - 1; i >= 0; i -= 1)
     {
         g_aQueue.GetArray(i, queue);
 

@@ -223,7 +223,7 @@ impl Lrthrome {
                     let (tx_shutdown, rx_shutdown) = watch::channel(false);
                     let (tx_bytes, rx_bytes) = mpsc::unbounded_channel();
 
-                    info!("Peer has connected (addr = {})", addr);
+                    debug!("Peer has connected (addr = {})", addr);
 
                     let mut peer = PeerRegistry::new(tx_shutdown, tx_bytes);
 
@@ -261,7 +261,7 @@ impl Lrthrome {
                             }
                         },
                         Message::PeerDisconnected(addr) => {
-                            info!("Peer has disconnected (addr = {})", addr);
+                            debug!("Peer has disconnected (addr = {})", addr);
 
                             self.peers.remove(&addr);
                         }

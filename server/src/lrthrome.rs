@@ -308,10 +308,21 @@ impl Lrthrome {
                     };
 
                     let resp = match longest_match {
-                        Some(m) => ResponseOkFound {
-                            ip_address: request.ip_address,
-                            prefix: m.0,
-                            mask_len: m.1,
+                        Some(m) => {
+                            info!(
+                                "{} found in range of {}/{} ({:?}) (addr = {})",
+                                request.ip_address,
+                                m.0,
+                                m.1,
+                                request.meta,
+                                addr,
+                            );
+
+                            ResponseOkFound {
+                                ip_address: request.ip_address,
+                                prefix: m.0,
+                                mask_len: m.1,
+                            }
                         }
                         .to_bytes(),
                         None => ResponseOkNotFound {

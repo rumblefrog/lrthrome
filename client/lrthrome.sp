@@ -542,11 +542,16 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
         {
             Established e = view_as<Established>(header);
 
+            char banner[128];
+
+            e.Banner(banner, sizeof banner);
+
             PrintToServer("============ Lrthrome Established ============");
             PrintToServer("Rate-limit: %i", e.RateLimit);
             PrintToServer("Tree Size: %i", e.TreeSize);
             PrintToServer("Cache TTL: %i", e.CacheTTL);
             PrintToServer("Peer TTL: %i", e.PeerTTL);
+            PrintToServer("Banner: %s", banner);
             PrintToServer("============ Lrthrome Established ============");
         }
         case VariantResponseOkFound:

@@ -600,7 +600,27 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
         }
         case VariantResponseOkNotFound:
         {
-            // No addition handling necessary
+            ResponseOkNotFound r = view_as<ResponseOkNotFound>(header);
+
+            char ip[32];
+
+            LongToIP(r.IpAddress, ip, sizeof ip);
+
+            Queue queue;
+
+            for (int i = 0; i < g_aQueue.Length; i += 1)
+            {
+                g_aQueue.GetArray(i, queue);
+
+                if (queue.state != Sent)
+                    continue;
+
+                if (StrEqual(ip, queue.ip_address))
+                {
+                    queue.state = Complete;
+                    g_aQueue.SetArray(i, queue);
+                }
+            }
         }
         case VariantResponseError:
         {

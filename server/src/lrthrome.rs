@@ -311,11 +311,7 @@ impl Lrthrome {
                         Some(m) => {
                             info!(
                                 "{} found in range of {}/{} ({:?}) (addr = {})",
-                                request.ip_address,
-                                m.0,
-                                m.1,
-                                request.meta,
-                                addr,
+                                request.ip_address, m.0, m.1, request.meta, addr,
                             );
 
                             ResponseOkFound {

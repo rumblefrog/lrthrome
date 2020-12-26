@@ -1,16 +1,16 @@
 // Lrthrome - Fast and light TCP-server based IPv4 CIDR filter lookup server over minimal binary protocol, and memory footprint
 // Copyright (C) 2021  rumblefrog
-
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
+//
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
@@ -89,6 +89,9 @@ pub struct Lrthrome {
     ///
     /// Peer that exceeds this will be force disconnected.
     rate_limit: NonZeroU32,
+
+    /// Banner message sent to clients upon established.
+    banner: String,
 }
 
 /// Enum of message variants & data,
@@ -176,6 +179,7 @@ impl Lrthrome {
             // Default peer time-to-live to 15 seconds.
             peer_ttl: 15,
             ratelimiter: KeyedRateLimiter::new(rate_limit, Duration::from_secs(5)),
+            banner: "".to_string(),
             rate_limit,
             sources,
             rx,
@@ -190,6 +194,12 @@ impl Lrthrome {
 
     pub fn peer_ttl(&mut self, dur: u32) -> &mut Self {
         self.peer_ttl = dur;
+
+        self
+    }
+
+    pub fn banner(&mut self, banner: String) -> &mut Self {
+        self.banner = banner;
 
         self
     }
@@ -228,7 +238,7 @@ impl Lrthrome {
                         tree_size: tree_size as u32,
                         cache_ttl: self.cache_ttl,
                         peer_ttl: self.peer_ttl,
-                        banner: "n/a",
+                        banner: &self.banner,
                     }.to_bytes();
 
                     Self::peer_send(&addr, &mut peer, payload);

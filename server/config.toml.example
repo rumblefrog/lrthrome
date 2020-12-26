@@ -16,6 +16,9 @@ peer_ttl = 15
 # Multiple connections on a single IP address are aggregated together.
 rate_limit = 100
 
+# Banner message sent to clients upon established.
+banner = "Lrthrome | Glub Glub"
+
 # Sources that cache will be populated from.
 #
 # Additional source types may be added in the future.

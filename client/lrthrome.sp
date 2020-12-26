@@ -523,9 +523,9 @@ public void OnSocketConnect(Handle socket, any arg)
             {
                 queue.state = Complete;
             }
-        }
 
-        g_aQueue.SetArray(i, queue);
+            g_aQueue.SetArray(i, queue);
+        }
     }
 }
 

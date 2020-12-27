@@ -621,6 +621,8 @@ public void OnSocketReceive(Handle socket, const char[] receiveData, const int d
                     g_aQueue.SetArray(i, queue);
                 }
             }
+
+            PurgeQueue();
         }
         case VariantResponseError:
         {

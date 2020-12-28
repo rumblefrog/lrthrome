@@ -22,10 +22,10 @@ use std::time::Instant;
 
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::select;
-use tokio::stream::StreamExt;
 use tokio::sync::{mpsc, watch, RwLock};
 use tokio::time::{sleep, Duration};
 use tokio_util::codec::{BytesCodec, Decoder, Framed};
+use tokio_stream::StreamExt;
 
 use bytes::{Bytes, BytesMut};
 

@@ -16,13 +16,17 @@ toml = "0.5"
 cidr = "0.1"
 nom = "6.0.1"
 async-trait = "0.1"
-tokio-util = "0.5"
+tokio-stream = "0.1.0"
 futures = "0.3"
-bytes = "0.6"
+bytes = "1.0"
 treebitmap = "0.4.0"
 
 [dependencies.tokio]
-version = "0.3"
+version = "1.0"
+features = ["full"]
+
+[dependencies.tokio-util]
+version = "0.6"
 features = ["full"]
 
 [dependencies.serde]

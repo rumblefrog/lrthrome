@@ -41,6 +41,9 @@ impl Cache {
     }
 
     pub async fn temper(&mut self, sources: &Sources) -> LrthromeResult<()> {
+        // Create a new instance in order to purge prefixes that may not exist anymore
+        self.0 = IpLookupTable::new();
+
         for source in sources.sources() {
             if !source.has_update().await {
                 continue;

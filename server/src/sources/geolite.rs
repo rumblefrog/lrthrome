@@ -122,7 +122,7 @@ impl Fetcher for GeoLite {
                         }
                     }
                 }
-            },
+            }
             Err(_) => warn!("Unable to open {}. Skipped.", self.asn_path),
         }
 

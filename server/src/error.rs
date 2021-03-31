@@ -23,6 +23,9 @@ pub enum LrthromeError {
     #[error("Reqwest error {0}")]
     ReqwestError(#[from] reqwest::Error),
 
+    #[error("CSV error {0}")]
+    CsvError(#[from] csv::Error),
+
     #[error("Malformed payload")]
     MalformedPayload,
 
@@ -42,7 +45,7 @@ pub enum LrthromeError {
     InvalidInt(#[from] std::num::ParseIntError),
 
     #[error("Invalid CIDR {0}")]
-    InvalidCIDR(#[from] cidr::NetworkParseError),
+    InvalidCidr(#[from] cidr::NetworkParseError),
 
     #[error("Stream shutdown watch channel error {0}")]
     ShutdownWatchError(#[from] tokio::sync::watch::error::SendError<bool>),

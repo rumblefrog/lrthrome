@@ -16,7 +16,7 @@
 
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Config {
     #[serde(rename(deserialize = "General"))]
     pub general: General,
@@ -25,7 +25,7 @@ pub struct Config {
     pub sources: Sources,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct General {
     pub bind_address: String,
 
@@ -45,7 +45,43 @@ pub struct General {
     pub banner: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Sources {
     pub remotes: Vec<String>,
+
+    #[serde(rename = "GeoLite")]
+    pub geolite: GeoLite,
+}
+
+#[derive(Deserialize)]
+pub struct GeoLite {
+    #[serde(rename = "ASN")]
+    pub asn: GeoLiteAsn,
+
+    #[serde(rename = "City")]
+    pub city: GeoLiteCity,
+
+    #[serde(rename = "Country")]
+    pub country: GeoLiteCountry,
+}
+
+#[derive(Deserialize)]
+pub struct GeoLiteAsn {
+    pub database_path: String,
+
+    pub asns: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct GeoLiteCity {
+    pub database_path: String,
+
+    pub cities: Vec<u32>,
+}
+
+#[derive(Deserialize)]
+pub struct GeoLiteCountry {
+    pub database_path: String,
+
+    pub countries: Vec<u32>,
 }

@@ -24,4 +24,50 @@ banner = "Lrthrome | Glub Glub"
 # Additional source types may be added in the future.
 [Sources]
 # HTTP endpoints to populate from.
+#
+# Example
+# remotes = [
+#     "https://raw.githubusercontent.com/Umkus/ip-index/master/dist/blacklisted.netset",
+# ]
 remotes = [""]
+
+
+    # MaxMind's GeoLite databases.
+    #
+    # Missing databases are skipped.
+    [Sources.GeoLite]
+        # Autonomous system numbers.
+        # Each entry is an AS number.
+        [Sources.GeoLite.ASN]
+        database_path = "GeoLite2-ASN-Blocks-IPv4.csv"
+
+        # Example
+        # asns = [
+        #     7922,
+        # ]
+        asns = []
+
+
+        # City.
+        # Each entry is a numeric GeoName (https://www.geonames.org/) ID.
+        [Sources.GeoLite.City]
+        database_path = "GeoLite2-City-Blocks-IPv4.csv"
+
+        # Example
+        # cities = [
+        #     4180439,
+        #     4684888,
+        # ]
+        cities = []
+
+
+        # Country.
+        # Each entry is a numeric GeoName (https://www.geonames.org/) ID.
+        [Sources.GeoLite.Country]
+        database_path = "GeoLite2-Country-Blocks-IPv4.csv"
+
+        # Example
+        # countries = [
+        #     6252001,
+        # ]
+        countries = []

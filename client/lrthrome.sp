@@ -23,7 +23,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "rumblefrog & ziidx"
-#define PLUGIN_VERSION "0.2.0"
+#define PLUGIN_VERSION "1.1.0"
 
 #define PROTOCOL_VERSION 1
 

@@ -20,8 +20,10 @@ use cidr::Ipv4Cidr;
 
 use crate::error::LrthromeResult;
 
+mod geolite;
 mod remote;
 
+pub use geolite::GeoLite;
 pub use remote::Remote;
 
 #[async_trait]

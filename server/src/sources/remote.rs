@@ -50,11 +50,13 @@ impl Fetcher for Remote {
         let mut cidrs = Vec::new();
 
         for endpoint in &self.endpoints {
-            let resp = client.get(endpoint).send().await?.text().await?;
-
-            for line in resp.lines() {
-                if let Ok(cidr) = Ipv4Cidr::from_str(line) {
-                    cidrs.push(cidr);
+            if let Ok(res) = client.get(endpoint).send().await {
+                if let Ok(resp) = res.text().await {
+                    for line in resp.lines() {
+                        if let Ok(cidr) = Ipv4Cidr::from_str(line) {
+                            cidrs.push(cidr);
+                        }
+                    }
                 }
             }
         }

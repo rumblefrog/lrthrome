@@ -31,7 +31,7 @@ mod sources;
 
 use config::Config;
 use lrthrome::Lrthrome;
-use sources::{Remote, Sources};
+use sources::{GeoLite, Remote, Sources};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut sources = Sources::new();
 
     sources.register(Box::new(Remote::new(config.sources.remotes)));
+    sources.register(Box::new(GeoLite::new(config.sources.geolite)));
 
     let mut lrthrome = Lrthrome::new(
         config.general.bind_address,

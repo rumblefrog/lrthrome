@@ -8,6 +8,7 @@ Fast and light TCP-server based IPv4 CIDR filter lookup server over minimal bina
 
 ## Current implemented sources
 
-|  Name  |   Field   |       Description        |
-| ------ | --------- | ------------------------ |
-| Remote | `remotes` | HTTP request to endpoint |
+|  Name   |             Field             |             Description             |
+| ------- | ----------------------------- | ----------------------------------- |
+| Remote  | `remotes`                     | HTTP request to endpoint            |
+| GeoLite | `asns`, `cities`, `countries` | Network lookup by ASN or GeoName ID |

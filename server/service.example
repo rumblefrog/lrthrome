@@ -6,6 +6,7 @@ After=network-online.target
 ConditionFileNotEmpty=/etc/lrthrome/config.toml
 
 [Service]
+WorkingDirectory=/etc/lrthrome/
 ExecStart=/usr/local/bin/lrthrome
 KillMode=process
 KillSignal=SIGINT

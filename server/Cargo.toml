@@ -23,7 +23,7 @@ treebitmap = "0.4"
 csv = "1"
 
 [dependencies.tokio]
-version = "1.0"
+version = "1.16"
 features = ["full"]
 
 [dependencies.tokio-util]
